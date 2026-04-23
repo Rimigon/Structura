@@ -1,68 +1,76 @@
 # Structura
 
-Ultimate file management utility — visualize, transform, and automate directory structures in a sandbox before touching disk.
+[🇷🇺 Русский](./README.md) · [🇬🇧 English](./README.en.md)
 
-Cross-platform (Windows, macOS, Linux). Built with Tauri 2 (Rust) + React 18 + TypeScript + Tailwind + Shadcn UI.
+Кроссплатформенный инструмент для работы с файловой структурой: сканируй папку, планируй любые операции (переименование, перенос, схлопывание, сведение, массовое создание) в песочнице с цветным diff «до / после», применяй одной транзакцией.
 
-## Features (v0)
+**Главное правило:** ни одно разрушительное действие не касается диска до тех пор, пока ты не нажмёшь «Применить».
 
-- **Virtual Tree Engine** — scan a directory, manipulate it as an in-memory virtual tree. Parallel walk via `jwalk`.
-- **Sandbox mode** — every change (rename, delete, move, flatten, create) mutates the virtual tree only. Nothing touches disk until you click Apply.
-- **Before/After diff** — color-coded (green = new, red = deleted, yellow = renamed, blue = moved).
-- **Flatten** — two modes (move files INTO a folder / dissolve a folder OUTwards), deterministic conflict resolution, optional rename templates (`{parent}-{file}` etc.).
-- **Drag-and-drop** — drag any row to reorganize; drop on a file moves into its parent folder.
-- **Smart Search** — glob (`*.log`, `?ile`, `[abc]`), highlight mode or filter mode (hide non-matches).
-- **Context menu** — right-click a row for Open/Rename/New/Flatten/Dissolve/Copy path/Reveal in OS/Delete.
-- **Text ↔ Tree** — import/export trees as tab-indented, Markdown, or JSON. Load from file and save to file supported.
-- **SQLite preset library** — save Flatten configs with tags; survives restart.
-- **Transaction history** — last 20 applied transactions, each fully rollback-able via precomputed inverse ops (`.structura-trash/` restoration).
-- **Undo/Redo** — unlimited in the sandbox via `zundo`.
-- **10 color themes** — dark, light, Dracula, Nord, Solarized, Tokyo Night, Catppuccin, Monokai, GitHub Light. Picker in the title bar.
-- **Safety** — single `apply_transaction` write command; all paths validated against the scan root; soft deletes via `.structura-trash/`; disk-space pre-check.
+Windows · macOS · Linux. Собрано на Tauri 2 (Rust) + React 18 + TypeScript + Tailwind + Shadcn UI.
 
-## Prerequisites
+## Возможности (v0)
 
-- **Node.js** 20+ and **pnpm** 9+
-- **Rust** 1.77+ (install via [rustup](https://rustup.rs/))
-- On **Linux**: `webkit2gtk-4.1`, `libayatana-appindicator3-dev`, `librsvg2-dev`
-- On **Windows**: Microsoft Edge WebView2 Runtime (bundled on Windows 11)
-- On **macOS**: Xcode Command Line Tools
+- **Виртуальное дерево** — сканирование через `jwalk` (параллельный обход, работает на 10× быстрее обычного рекурсивного walk для больших деревьев).
+- **Песочница** — любое действие (переименовать, удалить, перенести, схлопнуть, создать) меняет только in-memory-дерево. Диск не трогается до `Ctrl+S`.
+- **Diff «до / после»** — подсветка строк цветом: зелёный = новое, красный = удалено, жёлтый = переименовано, синий = перемещено.
+- **Сведение (Flatten)** — два режима:
+  - *Свести в эту папку* — вытаскивает файлы из всего поддерева в выбранную папку.
+  - *Схлопнуть папку* — выносит содержимое на уровень выше и удаляет саму папку.
 
-See [Tauri prerequisites](https://tauri.app/start/prerequisites/) for full details.
+  Детерминированное разрешение конфликтов, лимит по размеру файла, шаблоны переименования (`{parent} — {file}`, `{parent}_{file}` и собственные).
+- **Drag-and-drop** — тащи любую строку за любое место. Drop на файл переносит в родительскую папку.
+- **Умный поиск** — glob (`*.log`, `?.tsx`, `[abc]`). Два режима: подсветка или фильтр (скрывает несовпавшие).
+- **Контекстное меню** — правая кнопка по строке: открыть как корень, новый файл / папка, переименовать, свести сюда, схлопнуть, копировать путь, показать в проводнике, удалить.
+- **Текст ↔ дерево** — импорт / экспорт в виде tab-indent, Markdown-списка или JSON. Загрузка из файла и сохранение в файл — через нативные диалоги ОС.
+- **Библиотека пресетов** — конфигурации Flatten с тегами, хранятся в SQLite, переживают перезапуск приложения.
+- **История транзакций** — последние 20 применённых транзакций с полным откатом: удалённые файлы возвращаются из `.structura-trash/`, переносы — в обратную сторону.
+- **Undo / Redo** — неограниченный в песочнице через `zundo`.
+- **20 цветовых тем** — Structura Dark / Light, Dracula, Nord, Solarized Dark/Light, Tokyo Night, Catppuccin Mocha, Monokai, GitHub Dark/Light, One Dark/Light, Gruvbox Dark/Light, Rosé Pine / Dawn, Material Ocean, Cobalt2, Ayu Mirage. Переключатель — в верхней панели (иконка палитры).
+- **Безопасность** — единственная команда записи (`apply_transaction`), все пути валидируются внутри корня сканирования, soft-delete в `.structura-trash/`, предварительная проверка свободного места на диске.
 
-## Setup
+## Требования
+
+- **Node.js** 20+ и **pnpm** 9+
+- **Rust** 1.77+ (установить через [rustup](https://rustup.rs/))
+- На **Linux**: `webkit2gtk-4.1`, `libayatana-appindicator3-dev`, `librsvg2-dev`
+- На **Windows**: Microsoft Edge WebView2 Runtime (входит в Windows 11 по умолчанию)
+- На **macOS**: Xcode Command Line Tools
+
+Подробнее — [Tauri prerequisites](https://tauri.app/start/prerequisites/).
+
+## Установка
 
 ```sh
 pnpm install
 ```
 
-## Development
+## Разработка
 
 ```sh
 pnpm tauri:dev
 ```
 
-Launches Vite dev server + the Tauri window with HMR on both sides.
+Поднимает Vite dev server и окно Tauri с HMR на обе стороны (TS/React и Rust).
 
-Or run the web UI standalone (no file system access):
+Или только веб-версия (без доступа к ФС):
 
 ```sh
 pnpm dev
 ```
 
-## Build
+## Сборка
 
 ```sh
 pnpm tauri:build
 ```
 
-Produces platform-native installers into `src-tauri/target/release/bundle/`.
+Собирает нативные инсталляторы для текущей ОС в `src-tauri/target/release/bundle/`.
 
-## Test
+## Тесты
 
 ```sh
-pnpm test           # Vitest (TS) one-shot
-pnpm test:watch     # Vitest watch
+pnpm test           # Vitest (TS), одноразовый прогон
+pnpm test:watch     # Vitest в watch-режиме
 pnpm typecheck      # tsc --noEmit
 
 cd src-tauri
@@ -70,33 +78,41 @@ cargo check
 cargo test
 ```
 
-## Project Structure
+Цель — ≥90% покрытия для чистых функций в `src/core/`. Rust-стороне тесты критичны для `safety.rs`, `fs_ops/*`, команд apply/disk.
 
-See [`CLAUDE.md`](./CLAUDE.md) for architecture, conventions, and navigation. Domain-specific details live in [`.claude/skills/`](./.claude/skills/).
+## Горячие клавиши
 
-## Keybinds
+| Клавиша | Действие |
+|---------|----------|
+| Ctrl/Cmd + O | Открыть папку |
+| Ctrl/Cmd + S | Применить изменения к диску |
+| Ctrl/Cmd + Z | Отменить (в песочнице) |
+| Ctrl/Cmd + Shift + Z | Повторить |
+| Ctrl/Cmd + F | Поиск по дереву |
+| F2 | Переименовать выделенный узел |
+| F5 | Пересканировать текущий корень |
+| Enter | Новый файл внутри выделенной папки |
+| Alt + Enter | Новая подпапка внутри выделенной |
+| Tab / Shift + Tab | Indent / Outdent выделенного узла |
+| Delete | Soft-delete (в корзину на apply) |
+| Правая кнопка | Контекстное меню |
 
-| Key | Action |
-|-----|--------|
-| Ctrl/Cmd + O | Open directory |
-| Ctrl/Cmd + S | Apply changes to disk |
-| Ctrl/Cmd + Z | Undo (sandbox) |
-| Ctrl/Cmd + Shift + Z | Redo |
-| Ctrl/Cmd + F | Focus tree search |
-| F2 | Rename selected node |
-| F5 | Rescan current root |
-| Enter | New file in focused folder |
-| Alt + Enter | New subfolder in focused folder |
-| Tab / Shift + Tab | Indent / Outdent selected node |
-| Delete | Soft-delete selected node |
-| Right-click | Context menu |
+Буквенные шорткаты используют физические коды клавиш (`KeyZ`, `KeyS` и т.д.), поэтому работают на любой раскладке, включая кириллицу.
 
-All letter shortcuts use physical key codes, so they work on any keyboard layout (including Cyrillic).
+## Архитектура
 
-## Status
+Весь код разделён на три слоя:
 
-v0 — working Flatten/Dissolve, Parser (tab/MD/JSON), Import/Export to file, drag-drop, smart search, SQLite presets, tx history + rollback, 10 color themes, context menu, parallel scan, disk-space guard. See `CLAUDE.md` → "Out of Scope for v0" for what's intentionally deferred.
+1. **Rust-executor** (`src-tauri/`) — тонкий слой безопасных операций: walk, move, mkdir, touch, delete, rename. Никогда не видит виртуальное дерево, только получает `Vec<Operation>` + `rootFsPath`.
+2. **Чистый core** (`src/core/`) — все алгоритмы (tree, parser, flatten, diff, transaction, search). Никакого React/Tauri/DOM, всё тестируется Vitest.
+3. **UI** (`src/components/`, `src/stores/`) — React + Zustand. Состояние в трёх основных store (tree / selection / ui / preset / txHistory).
 
-## License
+Инвариант порядка операций при Apply: `mkdir` (родители первыми) → `touch` → `rename` → `move` → `delete` (самые глубокие первыми). Без него Delete может обогнать Move и транзакция падает.
 
-MIT (to be added).
+## Статус
+
+v0 — рабочий Flatten/Dissolve, парсеры (tab/MD/JSON), Import/Export в файл, drag-drop, умный поиск, SQLite-пресеты, история транзакций + откат, 20 тем, контекстное меню, параллельный скан, проверка свободного места.
+
+## Лицензия
+
+MIT (файл LICENSE будет добавлен).
