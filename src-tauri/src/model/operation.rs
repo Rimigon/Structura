@@ -13,6 +13,16 @@ pub enum Operation {
     Mkdir { path: String },
     #[serde(rename_all = "camelCase")]
     Touch { path: String },
+    #[serde(rename_all = "camelCase")]
+    Copy {
+        from: String,
+        to: String,
+        recursive: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    Symlink { from: String, to: String },
+    #[serde(rename_all = "camelCase")]
+    Hardlink { from: String, to: String },
 }
 
 #[derive(Debug, Clone, Deserialize)]

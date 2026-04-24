@@ -26,6 +26,12 @@ function applyOne(state: TreeState, op: Operation): TreeState {
       return doMkdir(state, op.path);
     case 'touch':
       return state;
+    case 'copy':
+      return state;
+    case 'symlink':
+      return state;
+    case 'hardlink':
+      return state;
   }
 }
 

@@ -21,6 +21,7 @@ pub fn run() {
             let handle = app.handle();
             let conn = db::init(&handle).expect("failed to init sqlite");
             app.manage(DbState(Mutex::new(conn)));
+            commands::watcher::install_registry(&handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -34,6 +35,16 @@ pub fn run() {
             commands::apply_transaction,
             commands::reveal_in_os,
             commands::check_disk_space,
+            commands::find_duplicates,
+            commands::subscribe_watch,
+            commands::unsubscribe_watch,
+            commands::list_watches,
+            commands::open_floating_widget,
+            commands::close_floating_widget,
+            commands::extract_metadata,
+            commands::shell_integration_status,
+            commands::install_shell_integration,
+            commands::uninstall_shell_integration,
             commands::list_presets,
             commands::upsert_preset,
             commands::delete_preset,

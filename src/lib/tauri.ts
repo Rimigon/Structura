@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  DuplicateGroup,
   FsEntry,
   ScanOptions,
   Transaction,
@@ -96,6 +97,89 @@ export async function deletePreset(id: string): Promise<void> {
 
 export async function listTags(): Promise<string[]> {
   return invoke<string[]>('list_tags');
+}
+
+export async function findDuplicates(
+  rootFsPath: string,
+  minSizeBytes?: number,
+): Promise<DuplicateGroup[]> {
+  return invoke<DuplicateGroup[]>('find_duplicates', {
+    rootFsPath,
+    minSizeBytes: minSizeBytes ?? null,
+  });
+}
+
+export interface WatchInfo {
+  id: string;
+  path: string;
+  recursive: boolean;
+}
+
+export interface WatchEventPayload {
+  watchId: string;
+  kind: 'create' | 'modify' | 'remove' | 'access' | 'other' | 'any';
+  paths: string[];
+  timestamp: number;
+}
+
+export async function subscribeWatch(
+  path: string,
+  recursive = true,
+): Promise<string> {
+  return invoke<string>('subscribe_watch', { path, recursive });
+}
+
+export async function unsubscribeWatch(id: string): Promise<void> {
+  return invoke<void>('unsubscribe_watch', { id });
+}
+
+export async function listWatches(): Promise<WatchInfo[]> {
+  return invoke<WatchInfo[]>('list_watches');
+}
+
+export async function openFloatingWidget(): Promise<void> {
+  return invoke<void>('open_floating_widget');
+}
+
+export async function closeFloatingWidget(): Promise<void> {
+  return invoke<void>('close_floating_widget');
+}
+
+export interface MediaMetadata {
+  kind: 'image' | 'audio' | 'video' | 'other';
+  exifDate?: string | null;
+  exifCamera?: string | null;
+  exifLens?: string | null;
+  exifWidth?: number | null;
+  exifHeight?: number | null;
+  id3Artist?: string | null;
+  id3Title?: string | null;
+  id3Album?: string | null;
+  id3Year?: number | null;
+  id3Track?: number | null;
+}
+
+export async function extractMetadata(path: string): Promise<MediaMetadata> {
+  return invoke<MediaMetadata>('extract_metadata', { path });
+}
+
+export interface ShellIntegrationStatus {
+  platform: string;
+  installed: boolean;
+  supported: boolean;
+  note: string;
+}
+
+export async function shellIntegrationStatus(): Promise<ShellIntegrationStatus> {
+  return invoke<ShellIntegrationStatus>('shell_integration_status');
+}
+
+export async function installShellIntegration(): Promise<void> {
+  return invoke<void>('install_shell_integration');
+}
+
+export async function uninstallShellIntegration(): Promise<void> {
+  return invoke<void>('uninstall_shell_integration');
 }
 
 export const isTauri = (): boolean =>

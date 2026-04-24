@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Layers, FileText, Upload, Download, Pencil, Trash2, Plus } from 'lucide-react';
+import { Layers, FileText, Upload, Download, Pencil, Trash2, Plus, PackageOpen, Package } from 'lucide-react';
 import type { Preset } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -8,16 +8,62 @@ import { GlassPanel } from '@/components/common/GlassPanel';
 import { useSelectionStore, usePresetStore, useTreeStore, useUIStore } from '@/stores';
 import { flatten } from '@/core/flatten/flatten';
 import { DEFAULT_FLATTEN_CONFIG } from '@/types';
+import {
+  isTauri,
+  pickOpenFile,
+  pickSaveFile,
+  readTextFile,
+  writeTextFile,
+} from '@/lib/tauri';
 import { PresetEditor } from './PresetEditor';
 
 export function PresetList() {
   const presets = usePresetStore(s => s.presets);
+  const upsert = usePresetStore(s => s.upsert);
   const setImportOpen = useUIStore(s => s.setImportDialogOpen);
   const setExportOpen = useUIStore(s => s.setExportDialogOpen);
   const [search, setSearch] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [editing, setEditing] = useState<Preset | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const handleExportPresets = async () => {
+    if (!isTauri()) return;
+    const path = await pickSaveFile(
+      'structura-presets.json',
+      'Structura presets',
+      ['json'],
+    ).catch(() => null);
+    if (!path) return;
+    const payload = JSON.stringify(
+      { version: 1, presets, exportedAt: Date.now() },
+      null,
+      2,
+    );
+    try {
+      await writeTextFile(path, payload);
+    } catch (e) {
+      console.error('export presets failed', e);
+    }
+  };
+
+  const handleImportPresets = async () => {
+    if (!isTauri()) return;
+    const path = await pickOpenFile('Structura presets', ['json']).catch(() => null);
+    if (!path) return;
+    try {
+      const content = await readTextFile(path);
+      const data = JSON.parse(content) as { version: number; presets: Preset[] };
+      if (!data || typeof data !== 'object' || !Array.isArray(data.presets)) {
+        throw new Error('invalid preset file');
+      }
+      for (const p of data.presets) {
+        await upsert({ ...p, updatedAt: Date.now() });
+      }
+    } catch (e) {
+      console.error('import presets failed', e);
+    }
+  };
 
   const allTags = useMemo(() => {
     const tags = new Set<string>();
@@ -67,16 +113,38 @@ export function PresetList() {
       </div>
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Пресеты</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          aria-label="Новый пресет"
-          title="Новый пресет"
-          onClick={() => setCreating(true)}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            aria-label="Экспорт всех пресетов в JSON"
+            title="Экспорт всех пресетов в JSON"
+            onClick={handleExportPresets}
+          >
+            <Package className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            aria-label="Импорт пресетов из JSON"
+            title="Импорт пресетов из JSON"
+            onClick={handleImportPresets}
+          >
+            <PackageOpen className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            aria-label="Новый пресет"
+            title="Новый пресет"
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
       <div className="px-2 pb-1">
         <Input

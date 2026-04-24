@@ -1,13 +1,23 @@
 pub mod apply;
+pub mod dedup;
 pub mod dialog;
 pub mod disk;
+pub mod metadata;
 pub mod presets;
 pub mod reveal;
 pub mod scan;
+pub mod shell_integration;
+pub mod watcher;
+pub mod widget;
 
 pub use apply::*;
+pub use dedup::*;
 pub use dialog::*;
 pub use disk::*;
+pub use metadata::*;
 pub use presets::*;
 pub use reveal::*;
 pub use scan::*;
+pub use shell_integration::*;
+pub use watcher::*;
+pub use widget::*;

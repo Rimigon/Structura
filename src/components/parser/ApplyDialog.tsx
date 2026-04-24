@@ -188,10 +188,23 @@ function opsFromDiff(
   state: TreeState,
 ): Operation[] {
   const ops: Operation[] = [];
+  const copyRootIds = new Set<string>();
   for (const entry of diff) {
     if (entry.kind === 'added' && entry.toPath) {
       const n = state.nodes[entry.nodeId];
-      if (n?.kind === 'file') {
+      if (!n) continue;
+      if (n.copiedFrom) {
+        copyRootIds.add(entry.nodeId);
+        ops.push({
+          kind: 'copy',
+          from: n.copiedFrom,
+          to: entry.toPath,
+          recursive: n.kind === 'dir',
+        });
+        continue;
+      }
+      if (hasCopyAncestor(state, entry.nodeId, copyRootIds)) continue;
+      if (n.kind === 'file') {
         ops.push({ kind: 'touch', path: entry.toPath });
       } else {
         ops.push({ kind: 'mkdir', path: entry.toPath });
@@ -208,25 +221,44 @@ function opsFromDiff(
   return orderOps(ops);
 }
 
+function hasCopyAncestor(
+  state: TreeState,
+  id: string,
+  copyRoots: Set<string>,
+): boolean {
+  let cur = state.nodes[id]?.parentId ?? null;
+  while (cur) {
+    if (copyRoots.has(cur)) return true;
+    cur = state.nodes[cur]?.parentId ?? null;
+  }
+  return false;
+}
+
 function orderOps(ops: Operation[]): Operation[] {
   const mkdirs: Operation[] = [];
   const touches: Operation[] = [];
+  const copies: Operation[] = [];
   const renames: Operation[] = [];
   const moves: Operation[] = [];
   const deletes: Operation[] = [];
+  const links: Operation[] = [];
   for (const op of ops) {
     if (op.kind === 'mkdir') mkdirs.push(op);
     else if (op.kind === 'touch') touches.push(op);
+    else if (op.kind === 'copy') copies.push(op);
     else if (op.kind === 'rename') renames.push(op);
     else if (op.kind === 'move') moves.push(op);
     else if (op.kind === 'delete') deletes.push(op);
+    else if (op.kind === 'hardlink' || op.kind === 'symlink') links.push(op);
   }
   mkdirs.sort((a, b) => pathOf(a).length - pathOf(b).length);
   touches.sort((a, b) => pathOf(a).length - pathOf(b).length);
+  copies.sort((a, b) => pathOf(a).length - pathOf(b).length);
   deletes.sort((a, b) => pathOf(b).length - pathOf(a).length);
-  return [...mkdirs, ...touches, ...renames, ...moves, ...deletes];
+  return [...mkdirs, ...touches, ...copies, ...renames, ...moves, ...deletes, ...links];
 }
 
 function pathOf(op: Operation): string {
-  return 'path' in op ? op.path : op.kind === 'move' ? op.to : '';
+  if ('path' in op) return op.path;
+  return op.to;
 }

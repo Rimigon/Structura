@@ -6,16 +6,25 @@ export interface SelectMods {
   shift: boolean;
 }
 
+export type ClipboardMode = 'copy' | 'cut';
+
+export interface Clipboard {
+  ids: NodeId[];
+  mode: ClipboardMode;
+}
+
 interface SelectionState {
   focusedId: NodeId | null;
   editingId: NodeId | null;
   multiSelect: Set<NodeId>;
   lastAnchorId: NodeId | null;
+  clipboard: Clipboard | null;
   select(id: NodeId, mods: SelectMods, orderedIds: NodeId[]): void;
   focus(id: NodeId | null): void;
   startEditing(id: NodeId | null): void;
   clearMulti(): void;
   clear(): void;
+  setClipboard(clipboard: Clipboard | null): void;
 }
 
 export const useSelectionStore = create<SelectionState>(set => ({
@@ -23,6 +32,7 @@ export const useSelectionStore = create<SelectionState>(set => ({
   editingId: null,
   multiSelect: new Set(),
   lastAnchorId: null,
+  clipboard: null,
 
   select: (id, mods, orderedIds) =>
     set(state => {
@@ -54,4 +64,6 @@ export const useSelectionStore = create<SelectionState>(set => ({
 
   clear: () =>
     set({ focusedId: null, editingId: null, multiSelect: new Set(), lastAnchorId: null }),
+
+  setClipboard: clipboard => set({ clipboard }),
 }));

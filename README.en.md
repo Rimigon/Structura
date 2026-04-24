@@ -8,25 +8,41 @@ Cross-platform file-structure tool: scan a folder, plan any operation (rename, m
 
 Windows · macOS · Linux. Built with Tauri 2 (Rust) + React 18 + TypeScript + Tailwind + Shadcn UI.
 
-## Features (v0)
+## Features
+
+### Core (P0)
 
 - **Virtual tree** — scan via `jwalk` (parallel walk, ~10× faster than vanilla recursive walk on large trees).
-- **Sandbox** — every action (rename, delete, move, flatten, create) mutates the in-memory tree only. Disk stays untouched until `Ctrl+S`.
+- **Sandbox** — every action (rename, delete, move, copy, flatten, create) mutates the in-memory tree only. Disk stays untouched until `Ctrl+S`.
 - **Before / after diff** — row highlighting: green = new, red = deleted, yellow = renamed, blue = moved.
 - **Flatten** — two modes:
   - *Flatten into* — pulls files from the entire subtree into the chosen folder.
   - *Dissolve* — pushes the folder's contents up into its parent and deletes the folder itself.
 
-  Deterministic conflict resolution, per-file size cap, rename templates (`{parent} — {file}`, `{parent}_{file}`, custom).
-- **Drag-and-drop** — grab any row by any pixel. Dropping on a file targets that file's parent folder.
-- **Smart search** — glob (`*.log`, `?.tsx`, `[abc]`). Two modes: highlight only, or filter (hide non-matches).
-- **Context menu** — right-click a row: open as root, new file / folder, rename, flatten here, dissolve, copy path, reveal in OS, delete.
-- **Text ↔ tree** — import / export as tab-indented, Markdown list, or JSON. Load from file / save to file via native OS dialogs.
-- **Preset library** — Flatten configs with tags, stored in SQLite, survive restart.
-- **Transaction history** — last 20 applied transactions with full rollback: deleted files come back from `.structura-trash/`, moves are reversed.
-- **Undo / Redo** — unlimited in the sandbox via `zundo`.
-- **20 color themes** — Structura Dark / Light, Dracula, Nord, Solarized Dark/Light, Tokyo Night, Catppuccin Mocha, Monokai, GitHub Dark/Light, One Dark/Light, Gruvbox Dark/Light, Rosé Pine / Dawn, Material Ocean, Cobalt2, Ayu Mirage. Picker is in the title bar (palette icon).
+  Deterministic conflict resolution (parent-prefix / counter / replace / skip / ask), per-file size cap, rename templates.
+- **Copy / cut / paste** — `Ctrl+C` / `Ctrl+X` / `Ctrl+V` or context menu. Recursive directory copy preserving structure, multi-select aware.
+- **JSON / Markdown / tab-indent** — import / export tree in three formats. Load from / save to file via native OS dialogs.
+- **Smart search** — glob (`*.log`, `?.tsx`, `[abc]`). Two modes: highlight only, or filter (hide non-matches). "Select all" button for bulk actions.
+- **Context menu** — open as root, new file / folder, rename (inline + by template), copy / cut / paste, flatten, dissolve, copy path, reveal in OS, delete.
+- **Drag-and-drop** — grab any row. Dropping on a file targets that file's parent folder.
 - **Safety** — single write command (`apply_transaction`), every path is validated inside the scan root, soft-delete to `.structura-trash/`, pre-flight disk-space check.
+
+### Pro tools (P1)
+
+- **Preset library** — Flatten configs with tags, stored in SQLite, survive restart. Bulk JSON export / import for machine-to-machine sync.
+- **Transaction history** — last 20 applied transactions with full rollback: deleted files come back from `.structura-trash/`, moves reversed, copies / links deleted.
+- **Undo / Redo** — unlimited in the sandbox via `zundo`.
+- **20 color themes** — Structura Dark / Light, Dracula, Nord, Solarized Dark/Light, Tokyo Night, Catppuccin Mocha, Monokai, GitHub Dark/Light, One Dark/Light, Gruvbox Dark/Light, Rosé Pine / Dawn, Material Ocean, Cobalt2, Ayu Mirage.
+
+### Automation (P2)
+
+- **Duplicate finder** — SHA-256 across all files, grouped by size and hash, sorted by reclaimable space. Two actions: send duplicates to trash or merge via **hardlink** (0 new bytes, identical sha256, fully reversible).
+- **Symlink / hardlink** — new transaction ops `symlink { from, to }` and `hardlink { from, to }`. Windows symlinks require Developer Mode or admin.
+- **Folder watchers** — via the `notify` crate. Per-watcher rules `glob → preset`: on `create` events for files matching the mask, the preset auto-applies to the file's parent directory. Modes: notify-only (journal badge) or apply.
+- **Batch rename by template** — triggered from a folder's context menu. Templates support `{file}`, `{base}`, `{ext}`, `{parent}`, `{grandparent}`, `{counter}` plus metadata `{exif_date}`, `{exif_camera}`, `{exif_lens}`, `{exif_width}`, `{exif_height}`, `{id3_artist}`, `{id3_title}`, `{id3_album}`, `{id3_year}`, `{id3_track}`. Live "before → after" preview with conflict highlighting.
+- **Metadata** — automatic EXIF (photos) and ID3 (audio) readout when a file is focused, shown in the Properties panel.
+- **Floating DnD widget** — separate 180×180 transparent always-on-top window. Drop a folder — it opens in Structura as the root.
+- **Windows shell integration** — installable via Settings: "Open in Structura" on right-click of a folder and on blank space inside a folder (HKCU registry, no admin rights).
 
 ## Prerequisites
 
@@ -89,6 +105,9 @@ Target coverage: ≥90% for pure functions in `src/core/`. Rust-side tests are c
 | Ctrl/Cmd + Z | Undo (sandbox) |
 | Ctrl/Cmd + Shift + Z | Redo |
 | Ctrl/Cmd + F | Focus tree search |
+| Ctrl/Cmd + C | Copy selection to clipboard |
+| Ctrl/Cmd + X | Cut selection to clipboard |
+| Ctrl/Cmd + V | Paste into focused folder |
 | F2 | Rename selected node |
 | F5 | Rescan current root |
 | Enter | New file in focused folder |
@@ -107,11 +126,28 @@ Three layers:
 2. **Pure core** (`src/core/`) — all algorithms (tree, parser, flatten, diff, transaction, search). No React / Tauri / DOM imports; all unit-tested with Vitest.
 3. **UI** (`src/components/`, `src/stores/`) — React + Zustand. State split across a handful of stores (tree / selection / ui / preset / txHistory).
 
-Apply op-ordering invariant: `mkdir` (parents first) → `touch` → `rename` → `move` → `delete` (deepest first). Without this, Delete can race ahead of Move and break the transaction.
+Apply op-ordering invariant: `mkdir` (parents first) → `touch` → `copy` → `rename` → `move` → `delete` (deepest first) → `hardlink/symlink`. Without this, Delete can race ahead of Move and break the transaction; a hardlink at a path being soft-deleted must be created after the delete.
 
 ## Status
 
-v0 — working Flatten/Dissolve, parsers (tab/MD/JSON), Import/Export to file, drag-drop, smart search, SQLite presets, tx history + rollback, 20 themes, context menu, parallel scan, disk-space guard.
+v0 (P0 + P1 fully closed):
+
+- Flatten / Dissolve, parsers (tab / MD / JSON), Import / Export to file
+- Copy / cut / paste (recursive directory copy)
+- Drag-drop, smart search, multi-select, multi-create
+- SQLite presets with tags, JSON bulk export / import
+- Transaction history + rollback, 20 themes, context menu
+- Parallel scan, disk-space guard, soft-delete
+
+v0.1 (P2):
+
+- Hash-dedup with SHA-256 and hardlink merge
+- Symlink / hardlink as transaction operations
+- Folder watchers with glob rules and auto-apply presets
+- Batch rename by template with EXIF / ID3 variables
+- Metadata readout (EXIF / ID3) in Properties panel
+- Floating DnD widget (secondary window)
+- Windows shell integration (HKCU registry)
 
 ## License
 

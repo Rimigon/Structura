@@ -20,6 +20,9 @@ const KIND_LABEL: Record<Operation['kind'], string> = {
   delete: 'удалить',
   mkdir: 'создать папку',
   touch: 'создать файл',
+  copy: 'копировать',
+  symlink: 'symlink',
+  hardlink: 'hardlink',
 };
 
 const KIND_COLOR: Record<Operation['kind'], string> = {
@@ -28,6 +31,9 @@ const KIND_COLOR: Record<Operation['kind'], string> = {
   delete: 'text-diff-removed',
   mkdir: 'text-diff-added',
   touch: 'text-diff-added',
+  copy: 'text-diff-added',
+  symlink: 'text-diff-added',
+  hardlink: 'text-diff-added',
 };
 
 export function TxHistoryDialog() {
@@ -199,5 +205,11 @@ function describeOp(op: Operation): string {
       return op.path;
     case 'touch':
       return op.path;
+    case 'copy':
+      return `${op.from} → ${op.to}${op.recursive ? ' (рекурсивно)' : ''}`;
+    case 'symlink':
+      return `${op.to} → ${op.from}`;
+    case 'hardlink':
+      return `${op.to} ⇔ ${op.from}`;
   }
 }

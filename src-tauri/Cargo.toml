@@ -26,6 +26,13 @@ uuid = { version = "1", features = ["v4", "serde"] }
 fs2 = "0.4"
 jwalk = "0.8"
 rusqlite = { version = "0.31", features = ["bundled"] }
+sha2 = "0.10"
+notify = "6"
+kamadak-exif = "0.5"
+id3 = "1"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
 
 [dev-dependencies]
 tempfile = "3"

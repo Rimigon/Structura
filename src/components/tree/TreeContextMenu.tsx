@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  ClipboardPaste,
   Copy,
   ExternalLink,
   FilePlus2,
@@ -9,13 +10,15 @@ import {
   FolderPlus,
   Layers,
   Pencil,
+  Scissors,
   Trash2,
+  Wand2,
 } from 'lucide-react';
 import type { NodeId, TreeState } from '@/types';
 import { DEFAULT_FLATTEN_CONFIG } from '@/types';
 import { flatten } from '@/core/flatten/flatten';
 import { revealInOs, isTauri } from '@/lib/tauri';
-import { useSelectionStore, useTreeStore } from '@/stores';
+import { useSelectionStore, useTreeStore, useUIStore } from '@/stores';
 
 interface Props {
   x: number;
@@ -110,6 +113,61 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     label: 'Переименовать',
     onClick: () => useSelectionStore.getState().startEditing(nodeId),
   });
+
+  if (!isRoot) {
+    items.push({
+      icon: Copy,
+      label: 'Копировать',
+      onClick: () => {
+        const sel = useSelectionStore.getState();
+        const ids = sel.multiSelect.size > 0
+          ? Array.from(sel.multiSelect)
+          : [nodeId];
+        sel.setClipboard({ ids, mode: 'copy' });
+      },
+    });
+    items.push({
+      icon: Scissors,
+      label: 'Вырезать',
+      onClick: () => {
+        const sel = useSelectionStore.getState();
+        const ids = sel.multiSelect.size > 0
+          ? Array.from(sel.multiSelect)
+          : [nodeId];
+        sel.setClipboard({ ids, mode: 'cut' });
+      },
+    });
+  }
+
+  {
+    const clip = useSelectionStore.getState().clipboard;
+    const pasteTargetId = isDir ? nodeId : node.parentId;
+    if (clip && clip.ids.length > 0 && pasteTargetId) {
+      items.push({
+        icon: ClipboardPaste,
+        label: `Вставить (${clip.mode === 'cut' ? 'вырезано' : 'копия'}: ${clip.ids.length})`,
+        onClick: () => {
+          const sel = useSelectionStore.getState();
+          const tree = useTreeStore.getState();
+          if (clip.mode === 'copy') {
+            const created = tree.duplicateNodes(clip.ids, pasteTargetId);
+            if (created.length > 0) sel.focus(created[0]!);
+          } else {
+            for (const id of clip.ids) tree.moveNode(id, pasteTargetId, null);
+            sel.setClipboard(null);
+          }
+        },
+      });
+    }
+  }
+
+  if (isDir) {
+    items.push({
+      icon: Wand2,
+      label: 'Переименовать по шаблону…',
+      onClick: () => useUIStore.getState().setBatchRenameTarget(nodeId),
+    });
+  }
 
   if (isDir && !isRoot) {
     items.push({

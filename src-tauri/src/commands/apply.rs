@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::AppResult;
-use crate::fs_ops::{mkdir, move_file, rename_path, rmdir_if_empty, soft_delete, touch};
+use crate::fs_ops::{copy_path, hardlink, mkdir, move_file, rename_path, rmdir_if_empty, soft_delete, symlink, touch};
 use crate::model::{OpResult, OpStatus, Operation, Transaction, TxResult};
 
 #[tauri::command]
@@ -69,6 +69,18 @@ fn execute(op: &Operation, root: &Path) -> AppResult<Option<PathBuf>> {
         }
         Operation::Touch { path } => {
             touch(Path::new(path), root)?;
+            Ok(None)
+        }
+        Operation::Copy { from, to, recursive } => {
+            copy_path(Path::new(from), Path::new(to), root, *recursive)?;
+            Ok(None)
+        }
+        Operation::Symlink { from, to } => {
+            symlink(Path::new(from), Path::new(to), root)?;
+            Ok(None)
+        }
+        Operation::Hardlink { from, to } => {
+            hardlink(Path::new(from), Path::new(to), root)?;
             Ok(None)
         }
     }

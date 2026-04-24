@@ -3,11 +3,13 @@ import { persist } from 'zustand/middleware';
 import { temporal } from 'zundo';
 import type {
   DirNode,
+  FileNode,
   FsEntry,
   NodeId,
   Operation,
   ScanOptions,
   Transaction,
+  TreeNode,
   TreeState,
   TxResult,
 } from '@/types';
@@ -26,6 +28,7 @@ interface TreeActions {
   renameNode(id: NodeId, newName: string): void;
   deleteNode(id: NodeId): void;
   createNode(parentId: NodeId, kind: 'file' | 'dir', name: string): NodeId | null;
+  duplicateNodes(sourceIds: NodeId[], targetParentId: NodeId): NodeId[];
   indentNode(id: NodeId): void;
   outdentNode(id: NodeId): void;
   moveNode(id: NodeId, newParentId: NodeId, beforeId?: NodeId | null): void;
@@ -153,6 +156,48 @@ export const useTreeStore = create<TreeStore>()(
         return id;
       },
 
+      duplicateNodes: (sourceIds, targetParentId) => {
+        const state = get();
+        const target = state.nodes[targetParentId];
+        if (!target || target.kind !== 'dir') return [];
+        const sources = sourceIds
+          .map(id => state.nodes[id])
+          .filter((n): n is TreeNode => !!n && !!n.originalPath);
+        if (sources.length === 0) return [];
+
+        const takenNames = new Set<string>(
+          (target as DirNode).childIds
+            .map(cid => state.nodes[cid]?.name)
+            .filter((s): s is string => !!s),
+        );
+
+        const createdTopIds: NodeId[] = [];
+        set(s => {
+          const nodes = { ...s.nodes };
+          for (const src of sources) {
+            const baseName = uniqueName(src.name, takenNames);
+            takenNames.add(baseName);
+            const topId = cloneSubtree(
+              src,
+              state.nodes,
+              nodes,
+              targetParentId,
+              baseName,
+              true,
+            );
+            createdTopIds.push(topId);
+          }
+          const parent = nodes[targetParentId] as DirNode;
+          nodes[targetParentId] = {
+            ...parent,
+            childIds: [...createdTopIds, ...parent.childIds],
+            expanded: true,
+          };
+          return { ...s, nodes };
+        });
+        return createdTopIds;
+      },
+
       indentNode: id => {
         set(state => {
           const node = state.nodes[id];
@@ -249,6 +294,70 @@ function extOf(name: string): string {
   const dot = name.lastIndexOf('.');
   if (dot <= 0 || dot === name.length - 1) return '';
   return name.slice(dot + 1).toLowerCase();
+}
+
+function splitExt(name: string): { base: string; ext: string } {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return { base: name, ext: '' };
+  return { base: name.slice(0, dot), ext: name.slice(dot) };
+}
+
+function uniqueName(original: string, taken: Set<string>): string {
+  if (!taken.has(original)) return original;
+  const { base, ext } = splitExt(original);
+  for (let i = 2; i < 10000; i++) {
+    const candidate = `${base} (${i})${ext}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${base}-${Date.now()}${ext}`;
+}
+
+function cloneSubtree(
+  src: TreeNode,
+  srcNodes: Record<NodeId, TreeNode>,
+  dstNodes: Record<NodeId, TreeNode>,
+  newParentId: NodeId,
+  newName: string,
+  isTop: boolean,
+): NodeId {
+  const newId = makeNewNodeId(`copy:${src.id}:${newParentId}:${Date.now()}:${Math.random()}`);
+  if (src.kind === 'dir') {
+    const children: NodeId[] = [];
+    const childTaken = new Set<string>();
+    for (const cid of src.childIds) {
+      const child = srcNodes[cid];
+      if (!child) continue;
+      const name = uniqueName(child.name, childTaken);
+      childTaken.add(name);
+      const childId = cloneSubtree(child, srcNodes, dstNodes, newId, name, false);
+      children.push(childId);
+    }
+    const clone: DirNode = {
+      id: newId,
+      name: newName,
+      kind: 'dir',
+      parentId: newParentId,
+      childIds: children,
+      expanded: isTop ? true : src.expanded,
+      dirty: 'new',
+      copiedFrom: isTop ? src.originalPath : undefined,
+    };
+    dstNodes[newId] = clone;
+  } else {
+    const clone: FileNode = {
+      id: newId,
+      name: newName,
+      kind: 'file',
+      parentId: newParentId,
+      size: src.size,
+      modified: src.modified,
+      ext: src.ext,
+      dirty: 'new',
+      copiedFrom: isTop ? src.originalPath : undefined,
+    };
+    dstNodes[newId] = clone;
+  }
+  return newId;
 }
 
 function relocate(

@@ -3,7 +3,10 @@ export type Operation =
   | { kind: 'rename'; path: string; newName: string }
   | { kind: 'delete'; path: string; recursive: boolean }
   | { kind: 'mkdir'; path: string }
-  | { kind: 'touch'; path: string };
+  | { kind: 'touch'; path: string }
+  | { kind: 'copy'; from: string; to: string; recursive: boolean }
+  | { kind: 'symlink'; from: string; to: string }
+  | { kind: 'hardlink'; from: string; to: string };
 
 export interface Transaction {
   id: string;

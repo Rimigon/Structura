@@ -45,6 +45,42 @@ export function useHotkeys() {
         input?.select();
         return;
       }
+      if (mod && (e.code === 'KeyC' || e.code === 'KeyX')) {
+        if (inInput) return;
+        const sel = useSelectionStore.getState();
+        const ids = sel.multiSelect.size > 0
+          ? Array.from(sel.multiSelect)
+          : sel.focusedId
+            ? [sel.focusedId]
+            : [];
+        if (ids.length === 0) return;
+        e.preventDefault();
+        sel.setClipboard({ ids, mode: e.code === 'KeyX' ? 'cut' : 'copy' });
+        return;
+      }
+      if (mod && e.code === 'KeyV') {
+        if (inInput) return;
+        const sel = useSelectionStore.getState();
+        const clip = sel.clipboard;
+        if (!clip || clip.ids.length === 0) return;
+        const tree = useTreeStore.getState();
+        const focus = sel.focusedId;
+        const focusNode = focus ? tree.nodes[focus] : null;
+        const targetParentId =
+          focusNode?.kind === 'dir'
+            ? focusNode.id
+            : focusNode?.parentId ?? tree.rootId;
+        if (!targetParentId) return;
+        e.preventDefault();
+        if (clip.mode === 'copy') {
+          const created = tree.duplicateNodes(clip.ids, targetParentId);
+          if (created.length > 0) sel.focus(created[0]!);
+        } else {
+          for (const id of clip.ids) tree.moveNode(id, targetParentId, null);
+          sel.setClipboard(null);
+        }
+        return;
+      }
       if (e.key === 'F5') {
         e.preventDefault();
         const root = useTreeStore.getState().rootFsPath;

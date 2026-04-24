@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowUp, FolderOpen, History, Save, Undo2, Redo2, RefreshCw } from 'lucide-react';
+import { ArrowUp, Cog, Eye, FileSearch, FolderOpen, History, PictureInPicture, Save, Undo2, Redo2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { pickDirectory } from '@/lib/tauri';
+import { openFloatingWidget, pickDirectory } from '@/lib/tauri';
 import { useTreeStore, useUIStore, useTreeHistory } from '@/stores';
 import { ThemePicker } from './ThemePicker';
 
@@ -22,6 +22,9 @@ export function TitleBar() {
   const loading = useTreeStore(s => s.loading);
   const setApplyDialogOpen = useUIStore(s => s.setApplyDialogOpen);
   const setHistoryDialogOpen = useUIStore(s => s.setHistoryDialogOpen);
+  const setDedupDialogOpen = useUIStore(s => s.setDedupDialogOpen);
+  const setWatchersDialogOpen = useUIStore(s => s.setWatchersDialogOpen);
+  const setSettingsDialogOpen = useUIStore(s => s.setSettingsDialogOpen);
   const dirtyCount = useTreeStore(s =>
     Object.values(s.nodes).filter(n => n.dirty).length,
   );
@@ -115,6 +118,43 @@ export function TitleBar() {
         title="История транзакций"
       >
         <History className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setDedupDialogOpen(true)}
+        disabled={!rootFsPath}
+        aria-label="Поиск дубликатов"
+        title="Поиск дубликатов"
+      >
+        <FileSearch className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setWatchersDialogOpen(true)}
+        aria-label="Наблюдатели папок"
+        title="Наблюдатели папок"
+      >
+        <Eye className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => openFloatingWidget().catch(() => void 0)}
+        aria-label="Плавающий виджет"
+        title="Плавающий виджет"
+      >
+        <PictureInPicture className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setSettingsDialogOpen(true)}
+        aria-label="Настройки"
+        title="Настройки"
+      >
+        <Cog className="h-4 w-4" />
       </Button>
       <Input
         value={pathInput}

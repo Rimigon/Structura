@@ -54,12 +54,20 @@ interface UIState {
   exportDialogOpen: boolean;
   applyDialogOpen: boolean;
   historyDialogOpen: boolean;
+  dedupDialogOpen: boolean;
+  watchersDialogOpen: boolean;
+  settingsDialogOpen: boolean;
+  batchRenameTarget: string | null;
   setPanelSizes(left: number, right: number): void;
   setTheme(theme: ThemeId): void;
   setImportDialogOpen(open: boolean): void;
   setExportDialogOpen(open: boolean): void;
   setApplyDialogOpen(open: boolean): void;
   setHistoryDialogOpen(open: boolean): void;
+  setDedupDialogOpen(open: boolean): void;
+  setWatchersDialogOpen(open: boolean): void;
+  setSettingsDialogOpen(open: boolean): void;
+  setBatchRenameTarget(id: string | null): void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -72,6 +80,10 @@ export const useUIStore = create<UIState>()(
       exportDialogOpen: false,
       applyDialogOpen: false,
       historyDialogOpen: false,
+      dedupDialogOpen: false,
+      watchersDialogOpen: false,
+      settingsDialogOpen: false,
+      batchRenameTarget: null,
       setPanelSizes: (left, right) =>
         set({ leftPanelSize: left, rightPanelSize: right }),
       setTheme: theme => set({ theme }),
@@ -79,6 +91,10 @@ export const useUIStore = create<UIState>()(
       setExportDialogOpen: open => set({ exportDialogOpen: open }),
       setApplyDialogOpen: open => set({ applyDialogOpen: open }),
       setHistoryDialogOpen: open => set({ historyDialogOpen: open }),
+      setDedupDialogOpen: open => set({ dedupDialogOpen: open }),
+      setWatchersDialogOpen: open => set({ watchersDialogOpen: open }),
+      setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
+      setBatchRenameTarget: id => set({ batchRenameTarget: id }),
     }),
     {
       name: 'structura-ui',

@@ -18,6 +18,12 @@ export function invertOp(op: Operation, trashPath?: string): Operation | null {
     case 'delete':
       if (trashPath) return { kind: 'move', from: trashPath, to: op.path };
       return null;
+    case 'copy':
+      return { kind: 'delete', path: op.to, recursive: op.recursive };
+    case 'symlink':
+      return { kind: 'delete', path: op.to, recursive: false };
+    case 'hardlink':
+      return { kind: 'delete', path: op.to, recursive: false };
   }
 }
 

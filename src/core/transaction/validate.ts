@@ -37,5 +37,11 @@ function pathsOfOp(op: Operation): string[] {
       return [op.path];
     case 'touch':
       return [op.path];
+    case 'copy':
+      return [op.from, op.to];
+    case 'symlink':
+      return [op.from, op.to];
+    case 'hardlink':
+      return [op.from, op.to];
   }
 }

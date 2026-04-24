@@ -16,8 +16,14 @@ export function estimateBytes(state: TreeState, ops: Operation[]): number {
         total += sizeOfPath(state, op.from);
         break;
       }
+      case 'copy':
+        total += sizeOfPath(state, op.from);
+        break;
       case 'rename':
       case 'delete':
+      case 'touch':
+      case 'hardlink':
+      case 'symlink':
         break;
     }
   }

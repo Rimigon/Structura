@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DirNode, TreeNode } from '@/types';
 import { MonoText } from '@/components/common/MonoText';
 import { useTreeStore } from '@/stores';
+import { extractMetadata, isTauri, type MediaMetadata } from '@/lib/tauri';
 
 interface Props {
   node: TreeNode;
@@ -27,8 +28,45 @@ const DIRTY_RU: Record<NonNullable<TreeNode['dirty']>, string> = {
   deleted: 'удалён',
 };
 
+const MEDIA_EXTS = new Set([
+  'jpg', 'jpeg', 'tiff', 'tif', 'heic', 'heif', 'webp', 'png',
+  'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aiff',
+]);
+
 export function NodeDetails({ node }: Props) {
   const nodes = useTreeStore(s => s.nodes);
+  const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
+  const [metaError, setMetaError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri() || node.kind !== 'file' || !node.originalPath) {
+      setMetadata(null);
+      setMetaError(null);
+      return;
+    }
+    if (!MEDIA_EXTS.has(node.ext.toLowerCase())) {
+      setMetadata(null);
+      setMetaError(null);
+      return;
+    }
+    let cancelled = false;
+    extractMetadata(node.originalPath)
+      .then(m => {
+        if (!cancelled) {
+          setMetadata(m);
+          setMetaError(null);
+        }
+      })
+      .catch(e => {
+        if (!cancelled) {
+          setMetadata(null);
+          setMetaError((e as Error).message ?? String(e));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [node]);
 
   const stats = useMemo(() => {
     if (node.kind !== 'dir') return null;
@@ -93,7 +131,46 @@ export function NodeDetails({ node }: Props) {
         </Field>
       )}
       {node.dirty && <Field label="Статус">{DIRTY_RU[node.dirty]}</Field>}
+      {metadata && hasAnyMeta(metadata) && (
+        <Field label="Метаданные">
+          <div className="font-mono-tight text-xs space-y-0.5">
+            {metadata.exifDate && <div>📅 {metadata.exifDate}</div>}
+            {metadata.exifCamera && <div>📷 {metadata.exifCamera}</div>}
+            {metadata.exifLens && <div>🔭 {metadata.exifLens}</div>}
+            {(metadata.exifWidth || metadata.exifHeight) && (
+              <div>
+                📐 {metadata.exifWidth ?? '?'} × {metadata.exifHeight ?? '?'}
+              </div>
+            )}
+            {metadata.id3Artist && <div>🎤 {metadata.id3Artist}</div>}
+            {metadata.id3Title && <div>🎵 {metadata.id3Title}</div>}
+            {metadata.id3Album && <div>💿 {metadata.id3Album}</div>}
+            {metadata.id3Year && <div>🗓 {metadata.id3Year}</div>}
+            {metadata.id3Track && <div>#{metadata.id3Track}</div>}
+          </div>
+        </Field>
+      )}
+      {metaError && (
+        <div className="text-[11px] text-muted-foreground italic">
+          Метаданные недоступны
+        </div>
+      )}
     </div>
+  );
+}
+
+function hasAnyMeta(m: MediaMetadata): boolean {
+  return !!(
+    m.exifDate ||
+    m.exifCamera ||
+    m.exifLens ||
+    m.exifWidth ||
+    m.exifHeight ||
+    m.id3Artist ||
+    m.id3Title ||
+    m.id3Album ||
+    m.id3Year ||
+    m.id3Track
   );
 }
 

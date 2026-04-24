@@ -8,6 +8,7 @@ export interface BaseNode {
   parentId: NodeId | null;
   dirty?: DirtyFlag;
   originalPath?: string;
+  copiedFrom?: string;
 }
 
 export interface FileNode extends BaseNode {
