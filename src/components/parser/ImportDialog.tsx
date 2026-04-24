@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { parseText } from '@/core/parser';
 import { useTreeStore, useUIStore } from '@/stores';
 import { isTauri, pickOpenFile, readTextFile } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 
 const EXAMPLE = `proj/
 \tsrc/
@@ -24,6 +25,7 @@ export function ImportDialog() {
   const setOpen = useUIStore(s => s.setImportDialogOpen);
   const [text, setText] = useState(EXAMPLE);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
 
   const handleImport = () => {
     try {
@@ -45,10 +47,10 @@ export function ImportDialog() {
     setError(null);
     try {
       if (!isTauri()) {
-        setError('Открытие файла доступно только в приложении Tauri.');
+        setError(t('import.tauriOnly'));
         return;
       }
-      const path = await pickOpenFile('Дерево (txt, md, json)', ['txt', 'md', 'json']);
+      const path = await pickOpenFile(t('import.fileFilter'), ['txt', 'md', 'json']);
       if (!path) return;
       const content = await readTextFile(path);
       setText(content);
@@ -61,18 +63,13 @@ export function ImportDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Импорт дерева из текста</DialogTitle>
-          <DialogDescription>
-            Вставьте список с отступами табами, маркированный Markdown-список
-            или JSON-документ вида <code>{'{'}"version":1,"root":...{'}'}</code>.
-            Косая черта <code>/</code> в конце строки означает папку (для табов/markdown).
-            Формат определяется автоматически.
-          </DialogDescription>
+          <DialogTitle>{t('import.title')}</DialogTitle>
+          <DialogDescription>{t('import.description')}</DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleOpenFile}>
             <FolderOpen className="h-3.5 w-3.5" />
-            Открыть файл…
+            {t('import.openFile')}
           </Button>
         </div>
         <Textarea
@@ -86,9 +83,9 @@ export function ImportDialog() {
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Отмена
+            {t('common.cancel')}
           </Button>
-          <Button onClick={handleImport}>Импорт</Button>
+          <Button onClick={handleImport}>{t('import.submit')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

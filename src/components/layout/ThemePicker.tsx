@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom';
 import { Check, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { THEMES, useUIStore, type ThemeId } from '@/stores/uiStore';
+import { useT } from '@/lib/i18n';
 
 export function ThemePicker() {
   const theme = useUIStore(s => s.theme);
   const setTheme = useUIStore(s => s.setTheme);
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -63,21 +65,21 @@ export function ThemePicker() {
             className="neumorphic fixed min-w-[220px] max-h-[60vh] overflow-y-auto scrollbar-thin rounded-md border border-border py-1 shadow-xl"
             style={{ left: pos.x, top: pos.y, zIndex: 9999 }}
           >
-            {THEMES.map(t => (
+            {THEMES.map(th => (
               <button
-                key={t.id}
+                key={th.id}
                 type="button"
                 role="menuitemradio"
-                aria-checked={theme === t.id}
-                onClick={() => handlePick(t.id)}
+                aria-checked={theme === th.id}
+                onClick={() => handlePick(th.id)}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-mono-tight hover:bg-accent"
               >
                 <span className="inline-flex h-3.5 w-3.5 items-center justify-center shrink-0">
-                  {theme === t.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {theme === th.id && <Check className="h-3.5 w-3.5 text-primary" />}
                 </span>
-                <span>{t.label}</span>
+                <span>{th.label}</span>
                 <span className="ml-auto text-[10px] uppercase text-muted-foreground">
-                  {t.dark ? 'dark' : 'light'}
+                  {th.dark ? t('theme.dark') : t('theme.light')}
                 </span>
               </button>
             ))}
@@ -93,8 +95,8 @@ export function ThemePicker() {
         variant="ghost"
         size="icon"
         className="h-7 w-7"
-        aria-label="Тема оформления"
-        title="Тема оформления"
+        aria-label={t('theme.picker')}
+        title={t('theme.picker')}
         onClick={() => setOpen(v => !v)}
       >
         <Palette className="h-3.5 w-3.5" />

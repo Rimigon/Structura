@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { Locale } from '@/lib/i18n';
 
 export type ThemeId =
   | 'structura-dark'
@@ -46,10 +47,80 @@ export const THEMES: { id: ThemeId; label: string; dark: boolean }[] = [
   { id: 'ayu-mirage', label: 'Ayu Mirage', dark: true },
 ];
 
+// Hotkey configuration -----------------------------------------------------
+export type HotkeyAction =
+  | 'undo'
+  | 'redo'
+  | 'apply'
+  | 'openFolder'
+  | 'focusSearch'
+  | 'copy'
+  | 'cut'
+  | 'paste'
+  | 'copyNames'
+  | 'rescan'
+  | 'rename'
+  | 'delete'
+  | 'indent'
+  | 'outdent'
+  | 'newFile'
+  | 'newFolder'
+  | 'help';
+
+export interface HotkeySpec {
+  /** `e.code` for letter keys (e.g. `KeyZ`) so physical layout matches. For function/special keys use `e.key` (`F2`, `Tab`, `Enter`, `Delete`, `F1`). */
+  primary: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+}
+
+export const HOTKEY_ACTIONS: HotkeyAction[] = [
+  'undo',
+  'redo',
+  'apply',
+  'openFolder',
+  'focusSearch',
+  'copy',
+  'cut',
+  'paste',
+  'copyNames',
+  'rescan',
+  'rename',
+  'delete',
+  'indent',
+  'outdent',
+  'newFile',
+  'newFolder',
+  'help',
+];
+
+export const DEFAULT_HOTKEYS: Record<HotkeyAction, HotkeySpec> = {
+  undo: { primary: 'KeyZ', ctrl: true },
+  redo: { primary: 'KeyY', ctrl: true },
+  apply: { primary: 'KeyS', ctrl: true },
+  openFolder: { primary: 'KeyO', ctrl: true },
+  focusSearch: { primary: 'KeyF', ctrl: true },
+  copy: { primary: 'KeyC', ctrl: true },
+  cut: { primary: 'KeyX', ctrl: true },
+  paste: { primary: 'KeyV', ctrl: true },
+  copyNames: { primary: 'KeyC', ctrl: true, shift: true },
+  rescan: { primary: 'F5' },
+  rename: { primary: 'F2' },
+  delete: { primary: 'Delete' },
+  indent: { primary: 'Tab' },
+  outdent: { primary: 'Tab', shift: true },
+  newFile: { primary: 'Enter' },
+  newFolder: { primary: 'Enter', alt: true },
+  help: { primary: 'F1' },
+};
+
 interface UIState {
   leftPanelSize: number;
   rightPanelSize: number;
   theme: ThemeId;
+  locale: Locale;
+  hotkeys: Record<HotkeyAction, HotkeySpec>;
   importDialogOpen: boolean;
   exportDialogOpen: boolean;
   applyDialogOpen: boolean;
@@ -57,9 +128,15 @@ interface UIState {
   dedupDialogOpen: boolean;
   watchersDialogOpen: boolean;
   settingsDialogOpen: boolean;
+  helpDialogOpen: boolean;
   batchRenameTarget: string | null;
+  /** When set, BatchRename renames these specific node IDs (instead of all children of a folder). */
+  batchRenameSelection: string[] | null;
   setPanelSizes(left: number, right: number): void;
   setTheme(theme: ThemeId): void;
+  setLocale(locale: Locale): void;
+  setHotkey(action: HotkeyAction, spec: HotkeySpec): void;
+  resetHotkeys(): void;
   setImportDialogOpen(open: boolean): void;
   setExportDialogOpen(open: boolean): void;
   setApplyDialogOpen(open: boolean): void;
@@ -67,7 +144,9 @@ interface UIState {
   setDedupDialogOpen(open: boolean): void;
   setWatchersDialogOpen(open: boolean): void;
   setSettingsDialogOpen(open: boolean): void;
+  setHelpDialogOpen(open: boolean): void;
   setBatchRenameTarget(id: string | null): void;
+  setBatchRenameSelection(ids: string[] | null): void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -76,6 +155,8 @@ export const useUIStore = create<UIState>()(
       leftPanelSize: 20,
       rightPanelSize: 25,
       theme: 'structura-dark',
+      locale: 'ru',
+      hotkeys: { ...DEFAULT_HOTKEYS },
       importDialogOpen: false,
       exportDialogOpen: false,
       applyDialogOpen: false,
@@ -83,10 +164,16 @@ export const useUIStore = create<UIState>()(
       dedupDialogOpen: false,
       watchersDialogOpen: false,
       settingsDialogOpen: false,
+      helpDialogOpen: false,
       batchRenameTarget: null,
+      batchRenameSelection: null,
       setPanelSizes: (left, right) =>
         set({ leftPanelSize: left, rightPanelSize: right }),
       setTheme: theme => set({ theme }),
+      setLocale: locale => set({ locale }),
+      setHotkey: (action, spec) =>
+        set(state => ({ hotkeys: { ...state.hotkeys, [action]: spec } })),
+      resetHotkeys: () => set({ hotkeys: { ...DEFAULT_HOTKEYS } }),
       setImportDialogOpen: open => set({ importDialogOpen: open }),
       setExportDialogOpen: open => set({ exportDialogOpen: open }),
       setApplyDialogOpen: open => set({ applyDialogOpen: open }),
@@ -94,16 +181,69 @@ export const useUIStore = create<UIState>()(
       setDedupDialogOpen: open => set({ dedupDialogOpen: open }),
       setWatchersDialogOpen: open => set({ watchersDialogOpen: open }),
       setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
+      setHelpDialogOpen: open => set({ helpDialogOpen: open }),
       setBatchRenameTarget: id => set({ batchRenameTarget: id }),
+      setBatchRenameSelection: ids => set({ batchRenameSelection: ids }),
     }),
     {
       name: 'structura-ui',
-      version: 2,
+      version: 3,
       partialize: state => ({
         leftPanelSize: state.leftPanelSize,
         rightPanelSize: state.rightPanelSize,
         theme: state.theme,
+        locale: state.locale,
+        hotkeys: state.hotkeys,
       }),
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Partial<UIState>;
+        // v2 → v3: introduce locale + hotkeys
+        if (version < 3) {
+          return {
+            ...p,
+            locale: p.locale ?? 'ru',
+            hotkeys: p.hotkeys ?? { ...DEFAULT_HOTKEYS },
+          } as UIState;
+        }
+        return p as UIState;
+      },
     },
   ),
 );
+
+// Hotkey helpers ----------------------------------------------------------
+
+export function matchHotkey(e: KeyboardEvent, spec: HotkeySpec): boolean {
+  const mod = e.ctrlKey || e.metaKey;
+  if (!!spec.ctrl !== mod) return false;
+  if (!!spec.shift !== e.shiftKey) return false;
+  if (!!spec.alt !== e.altKey) return false;
+  if (spec.primary.startsWith('Key') || spec.primary.startsWith('Digit')) {
+    return e.code === spec.primary;
+  }
+  return e.key === spec.primary;
+}
+
+export function formatHotkey(spec: HotkeySpec): string {
+  const parts: string[] = [];
+  if (spec.ctrl) parts.push('Ctrl');
+  if (spec.shift) parts.push('Shift');
+  if (spec.alt) parts.push('Alt');
+  if (spec.primary.startsWith('Key')) parts.push(spec.primary.slice(3));
+  else if (spec.primary.startsWith('Digit')) parts.push(spec.primary.slice(5));
+  else parts.push(spec.primary);
+  return parts.join('+');
+}
+
+/** Capture a hotkey from a keydown event. Returns null for pure modifier presses. */
+export function captureHotkey(e: KeyboardEvent): HotkeySpec | null {
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return null;
+  const primary =
+    e.code.startsWith('Key') || e.code.startsWith('Digit') ? e.code : e.key;
+  return {
+    primary,
+    ctrl: e.ctrlKey || e.metaKey || undefined,
+    shift: e.shiftKey || undefined,
+    alt: e.altKey || undefined,
+  };
+}

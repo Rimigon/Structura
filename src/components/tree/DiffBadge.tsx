@@ -1,5 +1,6 @@
 import type { DirtyFlag } from '@/types';
 import { cn } from '@/lib/cn';
+import { useT } from '@/lib/i18n';
 
 const LABEL: Record<DirtyFlag, string> = {
   new: '+',
@@ -15,18 +16,12 @@ const COLOR: Record<DirtyFlag, string> = {
   deleted: 'text-diff-removed border-diff-removed',
 };
 
-const TITLE_RU: Record<DirtyFlag, string> = {
-  new: 'новый',
-  moved: 'перемещён',
-  renamed: 'переименован',
-  deleted: 'удалён',
-};
-
 interface Props {
   dirty?: DirtyFlag;
 }
 
 export function DiffBadge({ dirty }: Props) {
+  const t = useT();
   if (!dirty) return null;
   return (
     <span
@@ -34,7 +29,7 @@ export function DiffBadge({ dirty }: Props) {
         'inline-flex h-4 min-w-[16px] items-center justify-center rounded-sm border px-1 text-[10px] font-semibold leading-none',
         COLOR[dirty],
       )}
-      title={TITLE_RU[dirty]}
+      title={t(`nd.dirty.${dirty}`)}
     >
       {LABEL[dirty]}
     </span>

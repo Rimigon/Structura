@@ -109,6 +109,37 @@ export async function findDuplicates(
   });
 }
 
+export interface SearchContentOptions {
+  caseSensitive?: boolean;
+  maxFileSizeBytes?: number;
+  maxResults?: number;
+  includeHidden?: boolean;
+}
+
+export interface ContentMatch {
+  path: string;
+  line: number;
+  preview: string;
+}
+
+export interface SearchContentResult {
+  matches: ContentMatch[];
+  scannedFiles: number;
+  truncated: boolean;
+}
+
+export async function searchContent(
+  rootFsPath: string,
+  query: string,
+  opts?: SearchContentOptions,
+): Promise<SearchContentResult> {
+  return invoke<SearchContentResult>('search_content', {
+    rootFsPath,
+    query,
+    opts: opts ?? null,
+  });
+}
+
 export interface WatchInfo {
   id: string;
   path: string;

@@ -16,6 +16,7 @@ import {
   type ConflictStrategy,
 } from '@/types';
 import { usePresetStore } from '@/stores';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   open: boolean;
@@ -23,12 +24,12 @@ interface Props {
   onClose: () => void;
 }
 
-const STRATEGY_LABELS: Record<ConflictStrategy, string> = {
-  'parent-prefix-then-counter': 'Префикс родителя, затем счётчик',
-  'counter-only': 'Только счётчик',
-  skip: 'Пропускать',
-  overwrite: 'Заменять',
-  ask: 'Спрашивать',
+const STRATEGY_KEY: Record<ConflictStrategy, string> = {
+  'parent-prefix-then-counter': 'flatten.strategy.parentPrefix',
+  'counter-only': 'flatten.strategy.counterOnly',
+  skip: 'flatten.strategy.skip',
+  overwrite: 'flatten.strategy.overwrite',
+  ask: 'flatten.strategy.ask',
 };
 
 function makeId(): string {
@@ -37,6 +38,7 @@ function makeId(): string {
 
 export function PresetEditor({ open, initial, onClose }: Props) {
   const upsert = usePresetStore(s => s.upsert);
+  const t = useT();
 
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
@@ -107,19 +109,18 @@ export function PresetEditor({ open, initial, onClose }: Props) {
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{initial ? 'Редактировать пресет' : 'Новый пресет'}</DialogTitle>
-          <DialogDescription>
-            Настройте стратегию сведения, лимит размеров и теги для быстрой фильтрации
-            в библиотеке.
-          </DialogDescription>
+          <DialogTitle>
+            {initial ? t('presetEditor.titleEdit') : t('presetEditor.titleNew')}
+          </DialogTitle>
+          <DialogDescription>{t('presetEditor.description')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-muted-foreground">Имя</label>
+            <label className="text-xs text-muted-foreground">{t('presetEditor.name')}</label>
             <Input value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Описание</label>
+            <label className="text-xs text-muted-foreground">{t('presetEditor.desc')}</label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
@@ -127,29 +128,25 @@ export function PresetEditor({ open, initial, onClose }: Props) {
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Теги (через запятую)</label>
+            <label className="text-xs text-muted-foreground">{t('presetEditor.tags')}</label>
             <Input value={tagsInput} onChange={e => setTagsInput(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">
-              Стратегия при совпадении имён
-            </label>
+            <label className="text-xs text-muted-foreground">{t('flatten.strategy')}</label>
             <select
               value={strategy}
               onChange={e => setStrategy(e.target.value as ConflictStrategy)}
               className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs font-mono-tight"
             >
-              {(Object.keys(STRATEGY_LABELS) as ConflictStrategy[]).map(s => (
+              {(Object.keys(STRATEGY_KEY) as ConflictStrategy[]).map(s => (
                 <option key={s} value={s}>
-                  {STRATEGY_LABELS[s]}
+                  {t(STRATEGY_KEY[s])}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">
-              Пропускать файлы больше (МБ)
-            </label>
+            <label className="text-xs text-muted-foreground">{t('presetEditor.maxSize')}</label>
             <Input
               type="number"
               min={0}
@@ -163,15 +160,15 @@ export function PresetEditor({ open, initial, onClose }: Props) {
               checked={cleanupEmpty}
               onChange={e => setCleanupEmpty(e.target.checked)}
             />
-            Удалять пустые папки после сведения
+            {t('presetEditor.cleanupEmpty')}
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Отмена
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={!name.trim()}>
-            Сохранить
+            {t('presetEditor.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

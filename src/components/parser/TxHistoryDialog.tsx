@@ -13,17 +13,7 @@ import { MonoText } from '@/components/common/MonoText';
 import type { Operation, Transaction } from '@/types';
 import { applyTransaction, isTauri } from '@/lib/tauri';
 import { useTreeStore, useTxHistoryStore, useUIStore } from '@/stores';
-
-const KIND_LABEL: Record<Operation['kind'], string> = {
-  move: 'переместить',
-  rename: 'переименовать',
-  delete: 'удалить',
-  mkdir: 'создать папку',
-  touch: 'создать файл',
-  copy: 'копировать',
-  symlink: 'symlink',
-  hardlink: 'hardlink',
-};
+import { useLocale, useT } from '@/lib/i18n';
 
 const KIND_COLOR: Record<Operation['kind'], string> = {
   move: 'text-diff-moved',
@@ -44,6 +34,8 @@ export function TxHistoryDialog() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const t = useT();
+  const locale = useLocale();
 
   const toggleExpand = (txId: string) => {
     setExpanded(prev => {
@@ -63,7 +55,7 @@ export function TxHistoryDialog() {
       const tx: Transaction = {
         id: 'rollback_' + Date.now().toString(36),
         createdAt: Date.now(),
-        label: `Откат: ${entry.label}`,
+        label: `${t('history.revert')}: ${entry.label}`,
         rootFsPath: entry.rootFsPath,
         ops: entry.inverseOps,
         inverse: [],
@@ -76,7 +68,7 @@ export function TxHistoryDialog() {
       const r = await applyTransaction(tx);
       const failed = r.results.filter(x => x.status === 'error');
       if (failed.length > 0) {
-        setErr(`Откат выполнен с ошибками: ${failed[0]!.error ?? 'неизвестно'}`);
+        setErr(`${t('history.rollbackErrors')}: ${failed[0]!.error ?? '?'}`);
       }
       markRolledBack(txId);
       if (entry.rootFsPath) {
@@ -89,18 +81,36 @@ export function TxHistoryDialog() {
     }
   };
 
+  const describeOp = (op: Operation): string => {
+    switch (op.kind) {
+      case 'move':
+        return `${op.from} → ${op.to}`;
+      case 'rename':
+        return `${op.path} → ${op.newName}`;
+      case 'delete':
+        return op.path + (op.recursive ? ` (${t('op.recursive')})` : '');
+      case 'mkdir':
+        return op.path;
+      case 'touch':
+        return op.path;
+      case 'copy':
+        return `${op.from} → ${op.to}${op.recursive ? ` (${t('op.recursive')})` : ''}`;
+      case 'symlink':
+        return `${op.to} → ${op.from}`;
+      case 'hardlink':
+        return `${op.to} ⇔ ${op.from}`;
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            История транзакций
+            {t('history.title')}
           </DialogTitle>
-          <DialogDescription>
-            Последние применённые транзакции. Кликните по записи, чтобы увидеть
-            операции. «Откатить» вернёт файлы из корзины в исходные места.
-          </DialogDescription>
+          <DialogDescription>{t('history.description')}</DialogDescription>
         </DialogHeader>
         {err && (
           <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive">
@@ -109,7 +119,7 @@ export function TxHistoryDialog() {
         )}
         {history.length === 0 ? (
           <div className="text-sm text-muted-foreground py-6 text-center">
-            История пуста. Применённые транзакции появятся здесь.
+            {t('history.empty')}
           </div>
         ) : (
           <ScrollArea className="max-h-[480px] rounded-md border border-border scrollbar-thin">
@@ -132,9 +142,11 @@ export function TxHistoryDialog() {
                         <div className="flex-1 min-w-0">
                           <MonoText className="text-xs truncate">{tx.label}</MonoText>
                           <div className="text-[11px] text-muted-foreground font-mono-tight">
-                            {new Date(tx.timestamp).toLocaleString('ru-RU')} · операций:{' '}
-                            {tx.ops.length}
-                            {tx.rolledBack && ' · откачено'}
+                            {new Date(tx.timestamp).toLocaleString(
+                              locale === 'ru' ? 'ru-RU' : 'en-US',
+                            )}{' '}
+                            · {t('history.opsCount')}: {tx.ops.length}
+                            {tx.rolledBack && ` · ${t('history.rolledBack')}`}
                           </div>
                         </div>
                       </button>
@@ -145,19 +157,19 @@ export function TxHistoryDialog() {
                         onClick={() => handleRollback(tx.txId)}
                       >
                         <Undo2 className="h-3.5 w-3.5" />
-                        {busy === tx.txId ? 'Откат…' : 'Откатить'}
+                        {busy === tx.txId ? t('history.reverting') : t('history.revert')}
                       </Button>
                     </div>
                     {isOpen && (
                       <div className="pl-5 space-y-1 border-l border-border ml-1.5">
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                          Прямые операции ({tx.ops.length})
+                          {t('history.forwardOps')} ({tx.ops.length})
                         </div>
                         <ul className="space-y-0.5">
                           {tx.ops.map((op, idx) => (
                             <li key={idx} className="text-[11px] font-mono-tight">
                               <span className={KIND_COLOR[op.kind]}>
-                                [{KIND_LABEL[op.kind]}]
+                                [{t(`op.${op.kind}`)}]
                               </span>{' '}
                               {describeOp(op)}
                             </li>
@@ -166,13 +178,13 @@ export function TxHistoryDialog() {
                         {tx.inverseOps.length > 0 && (
                           <>
                             <div className="text-[11px] uppercase tracking-wide text-muted-foreground mt-2">
-                              Обратные операции (для отката)
+                              {t('history.inverseOps')}
                             </div>
                             <ul className="space-y-0.5">
                               {tx.inverseOps.map((op, idx) => (
                                 <li key={idx} className="text-[11px] font-mono-tight opacity-70">
                                   <span className={KIND_COLOR[op.kind]}>
-                                    [{KIND_LABEL[op.kind]}]
+                                    [{t(`op.${op.kind}`)}]
                                   </span>{' '}
                                   {describeOp(op)}
                                 </li>
@@ -191,25 +203,4 @@ export function TxHistoryDialog() {
       </DialogContent>
     </Dialog>
   );
-}
-
-function describeOp(op: Operation): string {
-  switch (op.kind) {
-    case 'move':
-      return `${op.from} → ${op.to}`;
-    case 'rename':
-      return `${op.path} → ${op.newName}`;
-    case 'delete':
-      return op.path + (op.recursive ? ' (рекурсивно)' : '');
-    case 'mkdir':
-      return op.path;
-    case 'touch':
-      return op.path;
-    case 'copy':
-      return `${op.from} → ${op.to}${op.recursive ? ' (рекурсивно)' : ''}`;
-    case 'symlink':
-      return `${op.to} → ${op.from}`;
-    case 'hardlink':
-      return `${op.to} ⇔ ${op.from}`;
-  }
 }

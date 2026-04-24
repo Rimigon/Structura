@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 import { useSelectionStore, useTreeHistory, useTreeStore, useUIStore } from '@/stores';
+import { matchHotkey, DEFAULT_HOTKEYS } from '@/stores/uiStore';
+import type { HotkeySpec } from '@/stores/uiStore';
+import { defaultNodeName } from '@/lib/i18n';
 import { pickDirectory } from '@/lib/tauri';
 
 function isTextInput(target: EventTarget | null): boolean {
@@ -12,54 +15,96 @@ function isTextInput(target: EventTarget | null): boolean {
 export function useHotkeys() {
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey;
+      const ui = useUIStore.getState();
+      const hk = ui.hotkeys;
       const inInput = isTextInput(e.target);
 
-      if (mod && e.code === 'KeyZ' && !e.shiftKey) {
-        if (inInput) return;
+      const match = (spec: HotkeySpec) => matchHotkey(e, spec);
+      // Redo has an implicit alias (Ctrl+Shift+Z) alongside the configurable binding.
+      const redoAlias: HotkeySpec = { primary: 'KeyZ', ctrl: true, shift: true };
+
+      // --- Global (allowed in inputs too) ---------------------------------
+      if (match(hk.apply)) {
         e.preventDefault();
-        useTreeHistory().getState().undo();
+        ui.setApplyDialogOpen(true);
         return;
       }
-      if (mod && ((e.code === 'KeyZ' && e.shiftKey) || e.code === 'KeyY')) {
-        if (inInput) return;
-        e.preventDefault();
-        useTreeHistory().getState().redo();
-        return;
-      }
-      if (mod && e.code === 'KeyS') {
-        e.preventDefault();
-        useUIStore.getState().setApplyDialogOpen(true);
-        return;
-      }
-      if (mod && e.code === 'KeyO') {
+      if (match(hk.openFolder)) {
         e.preventDefault();
         const path = await pickDirectory().catch(() => null);
         if (path) await useTreeStore.getState().scanRoot(path);
         return;
       }
-      if (mod && e.code === 'KeyF') {
+      if (match(hk.focusSearch)) {
         e.preventDefault();
         const input = document.querySelector<HTMLInputElement>('[data-tree-search]');
         input?.focus();
         input?.select();
         return;
       }
-      if (mod && (e.code === 'KeyC' || e.code === 'KeyX')) {
-        if (inInput) return;
-        const sel = useSelectionStore.getState();
-        const ids = sel.multiSelect.size > 0
-          ? Array.from(sel.multiSelect)
-          : sel.focusedId
-            ? [sel.focusedId]
-            : [];
-        if (ids.length === 0) return;
+      if (match(hk.help) || matchHotkey(e, DEFAULT_HOTKEYS.help)) {
         e.preventDefault();
-        sel.setClipboard({ ids, mode: e.code === 'KeyX' ? 'cut' : 'copy' });
+        ui.setHelpDialogOpen(true);
         return;
       }
-      if (mod && e.code === 'KeyV') {
-        if (inInput) return;
+      if (match(hk.rescan)) {
+        e.preventDefault();
+        const root = useTreeStore.getState().rootFsPath;
+        if (root) await useTreeStore.getState().scanRoot(root);
+        return;
+      }
+
+      // --- Skip if in a text input ---------------------------------------
+      if (inInput) return;
+
+      if (match(hk.undo)) {
+        e.preventDefault();
+        useTreeHistory().getState().undo();
+        return;
+      }
+      if (match(hk.redo) || match(redoAlias)) {
+        e.preventDefault();
+        useTreeHistory().getState().redo();
+        return;
+      }
+      if (match(hk.copyNames)) {
+        // Must be checked before the plain copy binding since both use KeyC.
+        const sel = useSelectionStore.getState();
+        const tree = useTreeStore.getState();
+        const ids =
+          sel.multiSelect.size > 0
+            ? Array.from(sel.multiSelect)
+            : sel.focusedId
+              ? [sel.focusedId]
+              : [];
+        if (ids.length === 0) return;
+        e.preventDefault();
+        const names = ids
+          .map(id => tree.nodes[id]?.name)
+          .filter((n): n is string => !!n)
+          .join('\n');
+        if (!names) return;
+        try {
+          await navigator.clipboard.writeText(names);
+        } catch {
+          /* clipboard may be denied — ignore */
+        }
+        return;
+      }
+      if (match(hk.copy) || match(hk.cut)) {
+        const sel = useSelectionStore.getState();
+        const ids =
+          sel.multiSelect.size > 0
+            ? Array.from(sel.multiSelect)
+            : sel.focusedId
+              ? [sel.focusedId]
+              : [];
+        if (ids.length === 0) return;
+        e.preventDefault();
+        sel.setClipboard({ ids, mode: match(hk.cut) ? 'cut' : 'copy' });
+        return;
+      }
+      if (match(hk.paste)) {
         const sel = useSelectionStore.getState();
         const clip = sel.clipboard;
         if (!clip || clip.ids.length === 0) return;
@@ -81,14 +126,7 @@ export function useHotkeys() {
         }
         return;
       }
-      if (e.key === 'F5') {
-        e.preventDefault();
-        const root = useTreeStore.getState().rootFsPath;
-        if (root) await useTreeStore.getState().scanRoot(root);
-        return;
-      }
-      if (e.key === 'F2') {
-        if (inInput) return;
+      if (match(hk.rename)) {
         const sel = useSelectionStore.getState().focusedId;
         if (sel) {
           e.preventDefault();
@@ -96,47 +134,64 @@ export function useHotkeys() {
         }
         return;
       }
-      if (e.key === 'Delete') {
-        if (inInput) return;
-        const sel = useSelectionStore.getState().focusedId;
-        if (sel) {
-          e.preventDefault();
-          useTreeStore.getState().deleteNode(sel);
-        }
+      if (match(hk.delete)) {
+        const sel = useSelectionStore.getState();
+        const ids =
+          sel.multiSelect.size > 0
+            ? Array.from(sel.multiSelect)
+            : sel.focusedId
+              ? [sel.focusedId]
+              : [];
+        if (ids.length === 0) return;
+        e.preventDefault();
+        for (const id of ids) useTreeStore.getState().deleteNode(id);
         return;
       }
-      if (e.key === 'Tab' && !inInput) {
+      if (match(hk.outdent)) {
         const sel = useSelectionStore.getState().focusedId;
         if (!sel) return;
         e.preventDefault();
-        if (e.shiftKey) useTreeStore.getState().outdentNode(sel);
-        else useTreeStore.getState().indentNode(sel);
+        useTreeStore.getState().outdentNode(sel);
         return;
       }
-      if (e.key === 'Enter' && !inInput) {
+      if (match(hk.indent)) {
+        const sel = useSelectionStore.getState().focusedId;
+        if (!sel) return;
+        e.preventDefault();
+        useTreeStore.getState().indentNode(sel);
+        return;
+      }
+      if (match(hk.newFolder)) {
         const sel = useSelectionStore.getState().focusedId;
         if (!sel) return;
         const tree = useTreeStore.getState();
         const node = tree.nodes[sel];
         if (!node) return;
+        const parentId = node.kind === 'dir' ? node.id : node.parentId;
+        if (!parentId) return;
         e.preventDefault();
-        if (e.altKey) {
-          const parentId = node.kind === 'dir' ? node.id : node.parentId;
-          if (!parentId) return;
-          const newId = tree.createNode(parentId, 'dir', 'новая-папка');
-          if (newId) {
-            useSelectionStore.getState().focus(newId);
-            useSelectionStore.getState().startEditing(newId);
-          }
-        } else {
-          const parentId = node.kind === 'dir' ? node.id : node.parentId;
-          if (!parentId) return;
-          const newId = tree.createNode(parentId, 'file', 'новый-файл');
-          if (newId) {
-            useSelectionStore.getState().focus(newId);
-            useSelectionStore.getState().startEditing(newId);
-          }
+        const newId = tree.createNode(parentId, 'dir', defaultNodeName('dir'));
+        if (newId) {
+          useSelectionStore.getState().focus(newId);
+          useSelectionStore.getState().startEditing(newId);
         }
+        return;
+      }
+      if (match(hk.newFile)) {
+        const sel = useSelectionStore.getState().focusedId;
+        if (!sel) return;
+        const tree = useTreeStore.getState();
+        const node = tree.nodes[sel];
+        if (!node) return;
+        const parentId = node.kind === 'dir' ? node.id : node.parentId;
+        if (!parentId) return;
+        e.preventDefault();
+        const newId = tree.createNode(parentId, 'file', defaultNodeName('file'));
+        if (newId) {
+          useSelectionStore.getState().focus(newId);
+          useSelectionStore.getState().startEditing(newId);
+        }
+        return;
       }
     };
     window.addEventListener('keydown', onKey);

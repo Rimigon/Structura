@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { MonoText } from '@/components/common/MonoText';
 import { useTreeStore, useUIStore } from '@/stores';
 import { findDuplicates, isTauri } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 import type { DuplicateGroup, Operation, Transaction } from '@/types';
 
 function formatBytes(n: number): string {
@@ -41,6 +42,7 @@ export function DedupDialog() {
   const setOpen = useUIStore(s => s.setDedupDialogOpen);
   const rootFsPath = useTreeStore(s => s.rootFsPath);
   const applyToDisk = useTreeStore(s => s.applyToDisk);
+  const t = useT();
 
   const [minSizeKB, setMinSizeKB] = useState('1');
   const [mergeMode, setMergeMode] = useState<'delete' | 'hardlink'>('delete');
@@ -112,8 +114,8 @@ export function DedupDialog() {
     try {
       const label =
         mergeMode === 'hardlink'
-          ? `Объединение дубликатов через hardlink (${deletes.length})`
-          : `Удаление дубликатов (${deletes.length})`;
+          ? `${t('dedup.applyMerge')} (${deletes.length})`
+          : `${t('dedup.applyDelete')} (${deletes.length})`;
       const tx: Transaction = {
         id: 'dedup_' + Date.now().toString(36),
         createdAt: Date.now(),
@@ -151,19 +153,13 @@ export function DedupDialog() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSearch className="h-5 w-5 text-primary" />
-            Поиск дубликатов
+            {t('dedup.title')}
           </DialogTitle>
-          <DialogDescription>
-            Ищет файлы с идентичным содержимым по SHA-256. Удалённые дубликаты
-            отправляются в <MonoText className="inline">.structura-trash/</MonoText>{' '}
-            и могут быть восстановлены через «Историю».
-          </DialogDescription>
+          <DialogDescription>{t('dedup.description')}</DialogDescription>
         </DialogHeader>
 
         {!rootFsPath && (
-          <div className="text-sm text-muted-foreground">
-            Откройте папку, чтобы начать поиск.
-          </div>
+          <div className="text-sm text-muted-foreground">{t('dedup.needFolder')}</div>
         )}
 
         {rootFsPath && (
@@ -171,7 +167,7 @@ export function DedupDialog() {
             <div className="flex items-end gap-2 border-b border-border pb-3">
               <div className="flex flex-col gap-1 flex-1">
                 <label className="text-xs text-muted-foreground">
-                  Пропускать файлы меньше (КБ)
+                  {t('dedup.minSize')}
                 </label>
                 <Input
                   type="number"
@@ -190,12 +186,12 @@ export function DedupDialog() {
                 {scanning ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Сканирование…
+                    {t('dedup.scanning')}
                   </>
                 ) : (
                   <>
                     <FileSearch className="h-4 w-4" />
-                    Сканировать
+                    {t('dedup.scan')}
                   </>
                 )}
               </Button>
@@ -203,23 +199,25 @@ export function DedupDialog() {
 
             {groups.length > 0 && (
               <div className="flex items-center gap-2 border-b border-border pb-2">
-                <span className="text-xs text-muted-foreground">Режим:</span>
+                <span className="text-xs text-muted-foreground">{t('dedup.mode')}:</span>
                 <Button
                   variant={mergeMode === 'delete' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setMergeMode('delete')}
                   disabled={applying}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />В корзину
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t('dedup.modeDelete')}
                 </Button>
                 <Button
                   variant={mergeMode === 'hardlink' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setMergeMode('hardlink')}
                   disabled={applying}
-                  title="Заменить дубликаты hardlink-ами на оставленный файл (одинаковый inode, 0 новых байт)"
+                  title={t('dedup.modeHardlinkHint')}
                 >
-                  <Link2 className="h-3.5 w-3.5" />Объединить (hardlink)
+                  <Link2 className="h-3.5 w-3.5" />
+                  {t('dedup.modeHardlink')}
                 </Button>
               </div>
             )}
@@ -230,7 +228,7 @@ export function DedupDialog() {
 
             {scanned && !scanning && groups.length === 0 && (
               <div className="py-6 text-center text-sm text-muted-foreground">
-                Дубликаты не найдены.
+                {t('dedup.noResults')}
               </div>
             )}
 
@@ -238,12 +236,13 @@ export function DedupDialog() {
               <>
                 <div className="flex items-center justify-between text-xs font-mono-tight text-muted-foreground">
                   <span>
-                    Групп: <strong className="text-foreground">{groups.length}</strong>{' '}
-                    · К удалению:{' '}
+                    {t('dedup.groups')}:{' '}
+                    <strong className="text-foreground">{groups.length}</strong>{' '}
+                    · {t('dedup.toDelete')}:{' '}
                     <strong className="text-diff-removed">{toDeleteCount}</strong>
                   </span>
                   <span>
-                    Освободится:{' '}
+                    {t('dedup.willFree')}:{' '}
                     <strong className="text-diff-added">{formatBytes(totalWaste)}</strong>
                   </span>
                 </div>
@@ -273,7 +272,7 @@ export function DedupDialog() {
                               }
                               className="ml-auto text-[10px] uppercase tracking-wide hover:text-foreground"
                             >
-                              {keepIdx === -1 ? 'восстановить' : 'пропустить'}
+                              {keepIdx === -1 ? t('dedup.restore') : t('dedup.skip')}
                             </button>
                           </div>
                           <ul className="space-y-0.5">
@@ -308,10 +307,10 @@ export function DedupDialog() {
                                     {keepIdx === -1 ? (
                                       <span className="text-muted-foreground">—</span>
                                     ) : isKeep ? (
-                                      <span className="text-diff-added">оставить</span>
+                                      <span className="text-diff-added">{t('dedup.keep')}</span>
                                     ) : willDelete ? (
                                       <span className="text-diff-removed">
-                                        в корзину
+                                        {t('dedup.toTrash')}
                                       </span>
                                     ) : null}
                                   </span>
@@ -335,7 +334,7 @@ export function DedupDialog() {
             onClick={() => handleClose(false)}
             disabled={applying || scanning}
           >
-            Закрыть
+            {t('common.close')}
           </Button>
           <Button
             onClick={handleApply}
@@ -344,17 +343,17 @@ export function DedupDialog() {
             {applying ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Применение…
+                {t('dedup.applying')}
               </>
             ) : mergeMode === 'hardlink' ? (
               <>
                 <Link2 className="h-4 w-4" />
-                Объединить через hardlink ({toDeleteCount})
+                {t('dedup.applyMerge')} ({toDeleteCount})
               </>
             ) : (
               <>
                 <Trash2 className="h-4 w-4" />
-                Удалить выбранные ({toDeleteCount})
+                {t('dedup.applyDelete')} ({toDeleteCount})
               </>
             )}
           </Button>

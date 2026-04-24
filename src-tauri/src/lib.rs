@@ -49,6 +49,7 @@ pub fn run() {
             commands::upsert_preset,
             commands::delete_preset,
             commands::list_tags,
+            commands::search_content,
         ])
         .run(tauri::generate_context!())
         .expect("error while running structura");

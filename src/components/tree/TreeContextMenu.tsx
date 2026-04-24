@@ -5,6 +5,7 @@ import {
   Copy,
   ExternalLink,
   FilePlus2,
+  FileText,
   FolderMinus,
   FolderOpen,
   FolderPlus,
@@ -17,8 +18,10 @@ import {
 import type { NodeId, TreeState } from '@/types';
 import { DEFAULT_FLATTEN_CONFIG } from '@/types';
 import { flatten } from '@/core/flatten/flatten';
+import { fsPathOf } from '@/core/tree/traverse';
 import { revealInOs, isTauri } from '@/lib/tauri';
 import { useSelectionStore, useTreeStore, useUIStore } from '@/stores';
+import { defaultNodeName, useT } from '@/lib/i18n';
 
 interface Props {
   x: number;
@@ -37,6 +40,7 @@ interface Item {
 export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x, y });
+  const t = useT();
 
   useLayoutEffect(() => {
     const el = menuRef.current;
@@ -73,12 +77,19 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
   const isDir = node.kind === 'dir';
   const isRoot = node.id === tree.rootId;
 
+  // Selection context: if multi-select includes the clicked node, operate on the set.
+  const sel = useSelectionStore.getState();
+  const multi =
+    sel.multiSelect.has(nodeId) && sel.multiSelect.size > 1
+      ? Array.from(sel.multiSelect)
+      : null;
+
   const items: Item[] = [];
 
   if (isDir && !isRoot && node.originalPath) {
     items.push({
       icon: FolderOpen,
-      label: 'Открыть как корень',
+      label: t('tree.open_as_root'),
       onClick: () => useTreeStore.getState().scanRoot(node.originalPath!),
     });
   }
@@ -86,9 +97,9 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
   if (isDir) {
     items.push({
       icon: FilePlus2,
-      label: 'Новый файл',
+      label: t('tree.new_file'),
       onClick: () => {
-        const id = useTreeStore.getState().createNode(nodeId, 'file', 'новый-файл');
+        const id = useTreeStore.getState().createNode(nodeId, 'file', defaultNodeName('file'));
         if (id) {
           useSelectionStore.getState().focus(id);
           useSelectionStore.getState().startEditing(id);
@@ -97,9 +108,9 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     });
     items.push({
       icon: FolderPlus,
-      label: 'Новая папка',
+      label: t('tree.new_folder'),
       onClick: () => {
-        const id = useTreeStore.getState().createNode(nodeId, 'dir', 'новая-папка');
+        const id = useTreeStore.getState().createNode(nodeId, 'dir', defaultNodeName('dir'));
         if (id) {
           useSelectionStore.getState().focus(id);
           useSelectionStore.getState().startEditing(id);
@@ -108,32 +119,32 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     });
   }
 
-  items.push({
-    icon: Pencil,
-    label: 'Переименовать',
-    onClick: () => useSelectionStore.getState().startEditing(nodeId),
-  });
+  // Inline rename is only meaningful for a single target.
+  if (!multi) {
+    items.push({
+      icon: Pencil,
+      label: t('tree.rename'),
+      onClick: () => useSelectionStore.getState().startEditing(nodeId),
+    });
+  }
 
   if (!isRoot) {
+    const selCount = multi?.length ?? 1;
     items.push({
       icon: Copy,
-      label: 'Копировать',
+      label: selCount > 1 ? t('tree.copy') + ` (${selCount})` : t('tree.copy'),
       onClick: () => {
         const sel = useSelectionStore.getState();
-        const ids = sel.multiSelect.size > 0
-          ? Array.from(sel.multiSelect)
-          : [nodeId];
+        const ids = multi ?? [nodeId];
         sel.setClipboard({ ids, mode: 'copy' });
       },
     });
     items.push({
       icon: Scissors,
-      label: 'Вырезать',
+      label: selCount > 1 ? t('tree.cut') + ` (${selCount})` : t('tree.cut'),
       onClick: () => {
         const sel = useSelectionStore.getState();
-        const ids = sel.multiSelect.size > 0
-          ? Array.from(sel.multiSelect)
-          : [nodeId];
+        const ids = multi ?? [nodeId];
         sel.setClipboard({ ids, mode: 'cut' });
       },
     });
@@ -145,7 +156,10 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     if (clip && clip.ids.length > 0 && pasteTargetId) {
       items.push({
         icon: ClipboardPaste,
-        label: `Вставить (${clip.mode === 'cut' ? 'вырезано' : 'копия'}: ${clip.ids.length})`,
+        label:
+          clip.mode === 'cut'
+            ? t('tree.paste_cut', { n: clip.ids.length })
+            : t('tree.paste_copy', { n: clip.ids.length }),
         onClick: () => {
           const sel = useSelectionStore.getState();
           const tree = useTreeStore.getState();
@@ -161,39 +175,87 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     }
   }
 
+  // Mass copy names / paths ------------------------------------------------
+  if (multi) {
+    items.push({
+      icon: FileText,
+      label: t('tree.copy_names', { n: multi.length }),
+      onClick: async () => {
+        const state = useTreeStore.getState();
+        const text = multi
+          .map(id => state.nodes[id]?.name)
+          .filter((n): n is string => !!n)
+          .join('\n');
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          /* clipboard may be denied in Tauri webview — ignore */
+        }
+      },
+    });
+    items.push({
+      icon: Copy,
+      label: t('tree.copy_paths', { n: multi.length }),
+      onClick: async () => {
+        const state = useTreeStore.getState();
+        const text = multi
+          .map(id => fsPathOf(state, id) ?? state.nodes[id]?.originalPath ?? '')
+          .filter(p => !!p)
+          .join('\n');
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          /* ignore */
+        }
+      },
+    });
+  }
+
+  // Folder-level batch rename (renames children). Always available for folders.
   if (isDir) {
     items.push({
       icon: Wand2,
-      label: 'Переименовать по шаблону…',
+      label: t('tree.batch_rename'),
       onClick: () => useUIStore.getState().setBatchRenameTarget(nodeId),
+    });
+  }
+
+  // Selection-level batch rename (renames the selected nodes themselves).
+  if (multi && multi.length > 0) {
+    items.push({
+      icon: Wand2,
+      label: t('tree.batch_rename_selection', { n: multi.length }),
+      onClick: () => useUIStore.getState().setBatchRenameSelection(multi),
     });
   }
 
   if (isDir && !isRoot) {
     items.push({
       icon: Layers,
-      label: 'Свести в эту папку',
+      label: t('tree.flatten_into'),
       onClick: () => {
-        const t = useTreeStore.getState();
-        const res = flatten(t, nodeId, { ...DEFAULT_FLATTEN_CONFIG, mode: 'into-target' });
-        if (res.tx.ops.length > 0) t.applyOps(res.tx.ops);
+        const tree = useTreeStore.getState();
+        const res = flatten(tree, nodeId, { ...DEFAULT_FLATTEN_CONFIG, mode: 'into-target' });
+        if (res.tx.ops.length > 0) tree.applyOps(res.tx.ops);
       },
     });
     items.push({
       icon: FolderMinus,
-      label: 'Схлопнуть папку (вытащить наружу)',
+      label: t('tree.dissolve'),
       onClick: () => {
-        const t = useTreeStore.getState();
-        const res = flatten(t, nodeId, { ...DEFAULT_FLATTEN_CONFIG, mode: 'dissolve' });
-        if (res.tx.ops.length > 0) t.applyOps(res.tx.ops);
+        const tree = useTreeStore.getState();
+        const res = flatten(tree, nodeId, { ...DEFAULT_FLATTEN_CONFIG, mode: 'dissolve' });
+        if (res.tx.ops.length > 0) tree.applyOps(res.tx.ops);
       },
     });
   }
 
-  if (node.originalPath) {
+  if (node.originalPath && !multi) {
     items.push({
       icon: Copy,
-      label: 'Копировать путь',
+      label: t('tree.copy_path'),
       onClick: async () => {
         try {
           await navigator.clipboard.writeText(node.originalPath!);
@@ -205,7 +267,7 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     if (isTauri()) {
       items.push({
         icon: ExternalLink,
-        label: 'Показать в проводнике',
+        label: t('tree.reveal'),
         onClick: () => revealInOs(node.originalPath!).catch(() => void 0),
       });
     }
@@ -214,9 +276,13 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
   if (!isRoot) {
     items.push({
       icon: Trash2,
-      label: 'Удалить',
+      label: multi ? t('tree.delete') + ` (${multi.length})` : t('tree.delete'),
       danger: true,
-      onClick: () => useTreeStore.getState().deleteNode(nodeId),
+      onClick: () => {
+        const tree = useTreeStore.getState();
+        const ids = multi ?? [nodeId];
+        for (const id of ids) tree.deleteNode(id);
+      },
     });
   }
 
@@ -224,7 +290,7 @@ export function TreeContextMenu({ x, y, nodeId, onClose }: Props) {
     <div
       ref={menuRef}
       role="menu"
-      className="neumorphic fixed z-50 min-w-[200px] rounded-md border border-border py-1 text-sm shadow-lg"
+      className="neumorphic fixed z-50 min-w-[220px] rounded-md border border-border py-1 text-sm shadow-lg"
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={e => e.preventDefault()}
     >

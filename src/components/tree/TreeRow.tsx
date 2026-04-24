@@ -6,6 +6,8 @@ import type { SelectMods } from '@/stores/selectionStore';
 import { cn } from '@/lib/cn';
 import { MonoText } from '@/components/common/MonoText';
 import { Input } from '@/components/ui/input';
+import { useSelectionStore } from '@/stores';
+import { useT } from '@/lib/i18n';
 import { DiffBadge } from './DiffBadge';
 
 interface Props {
@@ -49,6 +51,7 @@ function TreeRowInner({
   const isDir = node.kind === 'dir';
   const expanded = isDir ? (node as DirNode).expanded : false;
   const diffClass = node.dirty ? DIFF_CLASS[node.dirty] : '';
+  const t = useT();
 
   const [draft, setDraft] = useState(node.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,7 +95,15 @@ function TreeRowInner({
       onContextMenu={e => {
         e.preventDefault();
         e.stopPropagation();
-        onSelect(node.id, { ctrl: false, shift: false });
+        // Preserve the multi-selection if the right-clicked row is part of it,
+        // so mass-actions ("rename selection", "copy names") remain available.
+        const ms = useSelectionStore.getState().multiSelect;
+        if (!(ms.size > 1 && ms.has(node.id))) {
+          onSelect(node.id, { ctrl: false, shift: false });
+        } else {
+          // Update focus/anchor without wiping the set.
+          useSelectionStore.getState().focus(node.id);
+        }
         onContextMenu(node.id, e.clientX, e.clientY);
       }}
       onDoubleClick={e => {
@@ -107,7 +118,7 @@ function TreeRowInner({
           onToggle(node.id);
         }
       }}
-      title={isDir ? 'Двойной клик — открыть папку как корень' : 'Двойной клик или F2 — переименовать'}
+      title={isDir ? t('tree.rowTipDir') : t('tree.rowTipFile')}
       className={cn(
         'group flex items-center gap-1 px-2 py-0.5 cursor-grab active:cursor-grabbing select-none rounded-sm',
         'hover:bg-accent/60',
@@ -136,7 +147,7 @@ function TreeRowInner({
             onToggle(node.id);
           }}
           className="flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
-          aria-label={expanded ? 'Свернуть' : 'Развернуть'}
+          aria-label={expanded ? t('tree.collapse') : t('tree.expand')}
         >
           {expanded ? (
             <ChevronDown className="h-3.5 w-3.5" />

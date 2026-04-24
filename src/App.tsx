@@ -15,6 +15,7 @@ import { DedupDialog } from '@/components/dedup/DedupDialog';
 import { WatchersDialog } from '@/components/watcher/WatchersDialog';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { BatchRenameDialog } from '@/components/rename/BatchRenameDialog';
+import { HelpDialog } from '@/components/common/HelpDialog';
 import { useHotkeys } from '@/hooks/useHotkeys';
 import { usePresetStore, useTreeStore, useUIStore, useWatcherStore } from '@/stores';
 import { THEMES } from '@/stores/uiStore';
@@ -85,6 +86,7 @@ export default function App() {
         <WatchersDialog />
         <SettingsDialog />
         <BatchRenameDialog />
+        <HelpDialog />
       </div>
     </TooltipProvider>
   );

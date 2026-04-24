@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Download, FileStack } from 'lucide-react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { closeFloatingWidget, isTauri } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 
 export function FloatingWidget() {
   const [hover, setHover] = useState(false);
   const [dropped, setDropped] = useState<string[]>([]);
+  const t = useT();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -13,19 +15,26 @@ export function FloatingWidget() {
     let unlisten: (() => void) | null = null;
     win
       .onDragDropEvent(async ev => {
-        if (ev.payload.type === 'over') setHover(true);
+        if (ev.payload.type === 'over' || ev.payload.type === 'enter') setHover(true);
         else if (ev.payload.type === 'drop') {
           setHover(false);
           const paths = ev.payload.paths;
           setDropped(prev => [...paths, ...prev].slice(0, 6));
-          // Emit to main window so it can process the drop
-          await win.emit('widget-dropped', paths);
+          try {
+            // Emit to main window so it can process the drop
+            await win.emit('widget-dropped', paths);
+          } catch (err) {
+            console.error('widget emit failed', err);
+          }
         } else if (ev.payload.type === 'leave') {
           setHover(false);
         }
       })
       .then(fn => {
         unlisten = fn;
+      })
+      .catch(err => {
+        console.error('widget drag-drop listener failed', err);
       });
     return () => {
       unlisten?.();
@@ -49,7 +58,7 @@ export function FloatingWidget() {
     >
       <FileStack className="h-6 w-6 text-primary" data-tauri-drag-region />
       <div className="text-[11px] text-muted-foreground" data-tauri-drag-region>
-        {hover ? 'Отпусти файлы' : 'Перетащи сюда'}
+        {hover ? t('widget.release') : t('widget.dropHere')}
       </div>
       {dropped.length > 0 && (
         <div className="w-full space-y-0.5 overflow-hidden">
@@ -65,7 +74,7 @@ export function FloatingWidget() {
           ))}
           {dropped.length > 3 && (
             <div className="text-[10px] text-muted-foreground">
-              +{dropped.length - 3} ещё
+              +{dropped.length - 3} {t('widget.more')}
             </div>
           )}
         </div>
@@ -74,7 +83,7 @@ export function FloatingWidget() {
         className="text-[9px] text-muted-foreground/70"
         data-tauri-drag-region
       >
-        2× клик — закрыть
+        {t('widget.doubleClickClose')}
       </div>
     </div>
   );

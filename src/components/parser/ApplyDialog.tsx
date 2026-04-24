@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  Folder,
+  HardDrive,
+  Loader2,
+  Move,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -14,25 +29,76 @@ import { summarize } from '@/core/diff';
 import { diffFromDirtyFlags } from '@/core/diff/computeDiff';
 import { estimateBytes } from '@/core/transaction/estimate';
 import { useTreeStore, useUIStore } from '@/stores';
-import type { Operation, TreeState, Transaction, TxResult } from '@/types';
+import type { DiffEntry, Operation, TreeState, Transaction, TxResult } from '@/types';
 import { checkDiskSpace, isTauri, type DiskCheck } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 
-const KIND_LABEL_RU: Record<'added' | 'removed' | 'renamed' | 'moved' | 'unchanged', string> = {
-  added: 'добавить',
-  removed: 'удалить',
-  renamed: 'переименовать',
-  moved: 'переместить',
-  unchanged: 'без изменений',
+type DiffKind = DiffEntry['kind'];
+type FilterKind = 'all' | 'added' | 'moved' | 'renamed' | 'removed';
+
+const KIND_ICON: Record<Exclude<DiffKind, 'unchanged'>, typeof Plus> = {
+  added: Plus,
+  removed: Trash2,
+  renamed: Pencil,
+  moved: Move,
 };
+
+const KIND_CLASS: Record<FilterKind, string> = {
+  all: 'text-foreground',
+  added: 'text-diff-added',
+  removed: 'text-diff-removed',
+  renamed: 'text-diff-renamed',
+  moved: 'text-diff-moved',
+};
+
+const KIND_BG: Record<Exclude<DiffKind, 'unchanged'>, string> = {
+  added: 'bg-diff-added/10 border-diff-added/30',
+  removed: 'bg-diff-removed/10 border-diff-removed/30',
+  renamed: 'bg-diff-renamed/10 border-diff-renamed/30',
+  moved: 'bg-diff-moved/10 border-diff-moved/30',
+};
+
+function splitPath(p: string): { head: string; tail: string } {
+  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  if (idx < 0) return { head: '', tail: p };
+  return { head: p.slice(0, idx + 1), tail: p.slice(idx + 1) };
+}
+
+function commonPrefix(a: string, b: string): string {
+  const slashA = Math.max(a.lastIndexOf('/'), a.lastIndexOf('\\'));
+  const slashB = Math.max(b.lastIndexOf('/'), b.lastIndexOf('\\'));
+  if (slashA < 0 || slashB < 0) return '';
+  const limit = Math.min(slashA, slashB);
+  let i = 0;
+  while (i <= limit && a[i] === b[i]) i++;
+  const lastSep = Math.max(
+    a.lastIndexOf('/', i - 1),
+    a.lastIndexOf('\\', i - 1),
+  );
+  if (lastSep < 0) return '';
+  return a.slice(0, lastSep + 1);
+}
+
+function formatBytes(n: number): string {
+  if (n <= 0) return '0 Б';
+  const units = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+  const idx = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  const val = n / Math.pow(1024, idx);
+  return `${val.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
 
 export function ApplyDialog() {
   const open = useUIStore(s => s.applyDialogOpen);
   const setOpen = useUIStore(s => s.setApplyDialogOpen);
   const state = useTreeStore();
+  const t = useT();
+
   const diff = useMemo(() => diffFromDirtyFlags(state), [state]);
   const summary = summarize(diff);
   const ops = useMemo(() => opsFromDiff(diff, state), [diff, state]);
   const required = useMemo(() => estimateBytes(state, ops), [state, ops]);
+
+  const [filter, setFilter] = useState<FilterKind>('all');
   const [result, setResult] = useState<TxResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [disk, setDisk] = useState<DiskCheck | null>(null);
@@ -63,6 +129,33 @@ export function ApplyDialog() {
     };
   }, [open, state.rootFsPath, required, summary.total]);
 
+  useEffect(() => {
+    if (!open) setResult(null);
+  }, [open]);
+
+  const fileCount = useMemo(
+    () =>
+      diff.filter(e => {
+        const n = state.nodes[e.nodeId];
+        return n && n.kind === 'file' && e.kind !== 'unchanged';
+      }).length,
+    [diff, state.nodes],
+  );
+  const dirCount = useMemo(
+    () =>
+      diff.filter(e => {
+        const n = state.nodes[e.nodeId];
+        return n && n.kind === 'dir' && e.kind !== 'unchanged';
+      }).length,
+    [diff, state.nodes],
+  );
+
+  const filteredDiff = useMemo(() => {
+    const list = diff.filter(e => e.kind !== 'unchanged');
+    if (filter === 'all') return list;
+    return list.filter(e => e.kind === filter);
+  }, [diff, filter]);
+
   const handleApply = async () => {
     if (!state.rootFsPath) return;
     setBusy(true);
@@ -70,7 +163,7 @@ export function ApplyDialog() {
       const tx: Transaction = {
         id: 'tx_' + Date.now().toString(36),
         createdAt: Date.now(),
-        label: 'Применение изменений из песочницы',
+        label: t('apply.title'),
         rootFsPath: state.rootFsPath,
         ops,
         inverse: [],
@@ -90,84 +183,179 @@ export function ApplyDialog() {
     }
   };
 
+  const counts: Record<FilterKind, number> = {
+    all: summary.total,
+    added: summary.added,
+    moved: summary.moved,
+    renamed: summary.renamed,
+    removed: summary.removed,
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Применить изменения к диску</DialogTitle>
-          <DialogDescription>
-            {summary.total === 0
-              ? 'Нет ожидающих изменений.'
-              : `Будет выполнено операций: ${summary.total}.`}
-          </DialogDescription>
+          <DialogTitle className="flex items-center gap-2">
+            <Play className="h-5 w-5 text-primary" />
+            {t('apply.title')}
+          </DialogTitle>
+          <DialogDescription>{t('apply.subtitle')}</DialogDescription>
         </DialogHeader>
-        <div className="flex gap-3 text-xs font-mono-tight">
-          <span className="text-diff-added">+{summary.added} добавить</span>
-          <span className="text-diff-moved">→{summary.moved} переместить</span>
-          <span className="text-diff-renamed">~{summary.renamed} переименовать</span>
-          <span className="text-diff-removed">×{summary.removed} удалить</span>
-        </div>
-        <ScrollArea className="max-h-[320px] rounded-md border border-border p-2 scrollbar-thin">
-          <ul className="space-y-1">
-            {diff.map(entry => (
-              <li key={entry.nodeId} className="text-xs">
-                <span
-                  className={{
-                    added: 'text-diff-added',
-                    removed: 'text-diff-removed',
-                    renamed: 'text-diff-renamed',
-                    moved: 'text-diff-moved',
-                    unchanged: 'text-muted-foreground',
-                  }[entry.kind]}
-                >
-                  [{KIND_LABEL_RU[entry.kind]}]
-                </span>{' '}
-                <MonoText className="text-xs">
-                  {entry.fromPath ?? ''}
-                  {entry.fromPath && entry.toPath ? ' → ' : ''}
-                  {entry.toPath ?? ''}
-                </MonoText>
-              </li>
-            ))}
-          </ul>
-        </ScrollArea>
+
+        {/* Summary metrics cards ------------------------------------------ */}
+        {summary.total === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            {t('apply.empty')}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+              <MetricCard
+                icon={Play}
+                label={t('apply.totalOps')}
+                value={summary.total}
+                active={filter === 'all'}
+                onClick={() => setFilter('all')}
+                className="text-foreground"
+                highlighted
+              />
+              <MetricCard
+                icon={Plus}
+                label={t('apply.added')}
+                value={summary.added}
+                active={filter === 'added'}
+                onClick={() => summary.added > 0 && setFilter('added')}
+                className="text-diff-added"
+              />
+              <MetricCard
+                icon={Move}
+                label={t('apply.moved')}
+                value={summary.moved}
+                active={filter === 'moved'}
+                onClick={() => summary.moved > 0 && setFilter('moved')}
+                className="text-diff-moved"
+              />
+              <MetricCard
+                icon={Pencil}
+                label={t('apply.renamed')}
+                value={summary.renamed}
+                active={filter === 'renamed'}
+                onClick={() => summary.renamed > 0 && setFilter('renamed')}
+                className="text-diff-renamed"
+              />
+              <MetricCard
+                icon={Trash2}
+                label={t('apply.removed')}
+                value={summary.removed}
+                active={filter === 'removed'}
+                onClick={() => summary.removed > 0 && setFilter('removed')}
+                className="text-diff-removed"
+              />
+              <MetricCard
+                icon={HardDrive}
+                label={t('apply.estSize')}
+                value={formatBytes(Math.max(0, Math.ceil(required)))}
+                className="text-muted-foreground"
+              />
+            </div>
+
+            {/* File / dir breakdown ---------------------------------------- */}
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono-tight">
+              <span className="flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                {t('apply.files')}: <strong className="text-foreground">{fileCount}</strong>
+              </span>
+              <span className="flex items-center gap-1">
+                <Folder className="h-3 w-3" />
+                {t('apply.dirs')}: <strong className="text-foreground">{dirCount}</strong>
+              </span>
+              <span className="ml-auto text-[10px] uppercase tracking-wide">
+                {filter === 'all' ? t('apply.showAll') : t(`apply.${filter}`)}:{' '}
+                <strong className="text-foreground">{counts[filter]}</strong>
+              </span>
+            </div>
+
+            {/* Operation list ---------------------------------------------- */}
+            <ScrollArea className="h-[320px] rounded-md border border-border p-1 scrollbar-thin">
+              <ul className="space-y-1">
+                {filteredDiff.length === 0 ? (
+                  <li className="py-4 text-center text-xs text-muted-foreground">
+                    {t('apply.empty')}
+                  </li>
+                ) : (
+                  filteredDiff.map(entry => (
+                    <OperationRow key={entry.nodeId} entry={entry} state={state} t={t} />
+                  ))
+                )}
+              </ul>
+            </ScrollArea>
+          </>
+        )}
+
+        {/* Disk space banner ---------------------------------------------- */}
         {disk && summary.total > 0 && (
           <div
             className={
-              'rounded-md border p-2 text-xs font-mono-tight ' +
+              'rounded-md border p-2 text-xs font-mono-tight flex items-center gap-2 ' +
               (disk.sufficient
                 ? 'border-border bg-card/60 text-muted-foreground'
                 : 'border-destructive/60 bg-destructive/10 text-destructive')
             }
           >
-            {disk.sufficient
-              ? `Места достаточно. Требуется ~${formatBytes(disk.required)}, доступно ${formatBytes(disk.available)}.`
-              : `Недостаточно места на диске. Требуется ${formatBytes(disk.required)}, доступно ${formatBytes(disk.available)}.`}
+            {disk.sufficient ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-diff-added" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>
+              {disk.sufficient ? t('apply.diskOk') : t('apply.diskInsufficient')}.{' '}
+              {t('apply.diskRequired')}: {formatBytes(disk.required)}{' · '}
+              {t('apply.diskAvailable')}: {formatBytes(disk.available)}
+            </span>
           </div>
         )}
         {diskError && (
           <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs font-mono-tight text-destructive">
-            Не удалось проверить свободное место: {diskError}
+            {t('apply.diskCheckFailed')}: {diskError}
           </div>
         )}
+
+        {/* Result ---------------------------------------------------------- */}
         {result && (
-          <div className="rounded-md border border-border bg-card/60 p-2 text-xs font-mono-tight">
-            успешно: {result.results.filter(r => r.status === 'ok').length}
-            {' · '}
-            с ошибками: {result.results.filter(r => r.status === 'error').length}
-            {' · '}
-            пропущено: {result.results.filter(r => r.status === 'skipped').length}
+          <div className="rounded-md border border-border bg-card/60 p-2 text-xs font-mono-tight flex items-center gap-3">
+            <span className="flex items-center gap-1 text-diff-added">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {t('apply.success')}: {result.results.filter(r => r.status === 'ok').length}
+            </span>
+            <span className="flex items-center gap-1 text-diff-removed">
+              <XCircle className="h-3.5 w-3.5" />
+              {t('apply.errors')}: {result.results.filter(r => r.status === 'error').length}
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              {t('apply.skipped')}: {result.results.filter(r => r.status === 'skipped').length}
+            </span>
           </div>
         )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Закрыть
+            {t('common.close')}
           </Button>
           <Button
             onClick={handleApply}
             disabled={busy || summary.total === 0 || disk?.sufficient === false}
           >
-            {busy ? 'Применение…' : 'Применить'}
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('apply.applying')}
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                {t('common.apply')}
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -175,12 +363,128 @@ export function ApplyDialog() {
   );
 }
 
-function formatBytes(n: number): string {
-  if (n <= 0) return '0 Б';
-  const units = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
-  const idx = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
-  const val = n / Math.pow(1024, idx);
-  return `${val.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  active,
+  onClick,
+  className,
+  highlighted,
+}: {
+  icon: typeof Plus;
+  label: string;
+  value: number | string;
+  active?: boolean;
+  onClick?: () => void;
+  className?: string;
+  highlighted?: boolean;
+}) {
+  const disabled = typeof value === 'number' && value === 0 && !highlighted;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        'flex flex-col items-start rounded-md border px-2 py-1.5 text-left transition-all ' +
+        (active
+          ? 'border-primary bg-primary/10 shadow-inner'
+          : 'border-border hover:border-primary/40') +
+        (disabled ? ' opacity-40 cursor-default' : ' cursor-pointer')
+      }
+    >
+      <div className={'flex items-center gap-1 ' + (className ?? '')}>
+        <Icon className="h-3 w-3" />
+        <span className="text-[10px] uppercase tracking-wide">{label}</span>
+      </div>
+      <div className={'text-base font-mono-tight font-semibold ' + (className ?? '')}>
+        {value}
+      </div>
+    </button>
+  );
+}
+
+function OperationRow({
+  entry,
+  state,
+  t,
+}: {
+  entry: DiffEntry;
+  state: TreeState;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  if (entry.kind === 'unchanged') return null;
+  const Icon = KIND_ICON[entry.kind];
+  const node = state.nodes[entry.nodeId];
+  const isDir = node?.kind === 'dir';
+  const NodeIcon = isDir ? Folder : FileText;
+
+  if (entry.kind === 'moved' || entry.kind === 'renamed') {
+    const from = entry.fromPath ?? '';
+    const to = entry.toPath ?? '';
+    const shared = commonPrefix(from, to);
+    const fromRel = shared ? from.slice(shared.length) : from;
+    const toRel = shared ? to.slice(shared.length) : to;
+    return (
+      <li
+        className={
+          'rounded border px-2 py-1.5 text-[11px] font-mono-tight flex items-start gap-2 ' +
+          KIND_BG[entry.kind]
+        }
+      >
+        <div className={'flex items-center gap-1 shrink-0 ' + KIND_CLASS[entry.kind]}>
+          <Icon className="h-3 w-3" />
+          <NodeIcon className="h-3 w-3" />
+          <span className="uppercase tracking-wide text-[10px]">
+            {t(`apply.${entry.kind}`)}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0 space-y-0.5">
+          {shared && (
+            <div className="text-[10px] text-muted-foreground truncate" title={shared}>
+              {shared}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <MonoText className="flex-1 truncate text-diff-removed/80" title={from}>
+              {fromRel || '—'}
+            </MonoText>
+            <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+            <MonoText className="flex-1 truncate text-diff-added/90" title={to}>
+              {toRel || '—'}
+            </MonoText>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  // added or removed
+  const path = entry.toPath ?? entry.fromPath ?? '';
+  const { head, tail } = splitPath(path);
+  return (
+    <li
+      className={
+        'rounded border px-2 py-1.5 text-[11px] font-mono-tight flex items-center gap-2 ' +
+        KIND_BG[entry.kind]
+      }
+    >
+      <div className={'flex items-center gap-1 shrink-0 ' + KIND_CLASS[entry.kind]}>
+        <Icon className="h-3 w-3" />
+        <NodeIcon className="h-3 w-3" />
+        <span className="uppercase tracking-wide text-[10px]">
+          {t(`apply.${entry.kind}`)}
+        </span>
+      </div>
+      <MonoText className="flex-1 truncate" title={path}>
+        <span className="text-muted-foreground">{head}</span>
+        <span className={KIND_CLASS[entry.kind === 'added' ? 'added' : 'removed']}>
+          {tail}
+        </span>
+      </MonoText>
+    </li>
+  );
 }
 
 function opsFromDiff(

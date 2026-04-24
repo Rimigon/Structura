@@ -15,6 +15,7 @@ import {
   readTextFile,
   writeTextFile,
 } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 import { PresetEditor } from './PresetEditor';
 
 export function PresetList() {
@@ -26,6 +27,7 @@ export function PresetList() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [editing, setEditing] = useState<Preset | null>(null);
   const [creating, setCreating] = useState(false);
+  const t = useT();
 
   const handleExportPresets = async () => {
     if (!isTauri()) return;
@@ -88,7 +90,7 @@ export function PresetList() {
     <GlassPanel className="border-r border-border">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs uppercase tracking-wider text-muted-foreground">
-          Библиотека
+          {t('presets.library')}
         </span>
       </div>
       <div className="flex flex-col gap-1 px-2 py-2">
@@ -99,7 +101,7 @@ export function PresetList() {
           onClick={() => setImportOpen(true)}
         >
           <Upload className="h-4 w-4" />
-          Импорт из текста
+          {t('presets.importText')}
         </Button>
         <Button
           variant="ghost"
@@ -108,18 +110,20 @@ export function PresetList() {
           onClick={() => setExportOpen(true)}
         >
           <Download className="h-4 w-4" />
-          Экспорт в текст
+          {t('presets.exportText')}
         </Button>
       </div>
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Пресеты</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+          {t('presets.header')}
+        </span>
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            aria-label="Экспорт всех пресетов в JSON"
-            title="Экспорт всех пресетов в JSON"
+            aria-label={t('presets.exportAll')}
+            title={t('presets.exportAll')}
             onClick={handleExportPresets}
           >
             <Package className="h-3.5 w-3.5" />
@@ -128,8 +132,8 @@ export function PresetList() {
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            aria-label="Импорт пресетов из JSON"
-            title="Импорт пресетов из JSON"
+            aria-label={t('presets.importAll')}
+            title={t('presets.importAll')}
             onClick={handleImportPresets}
           >
             <PackageOpen className="h-3.5 w-3.5" />
@@ -138,8 +142,8 @@ export function PresetList() {
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            aria-label="Новый пресет"
-            title="Новый пресет"
+            aria-label={t('presets.newOne')}
+            title={t('presets.newOne')}
             onClick={() => setCreating(true)}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -150,7 +154,7 @@ export function PresetList() {
         <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Поиск по имени/тегу"
+          placeholder={t('presets.searchPlaceholder')}
           className="h-7 text-xs font-mono-tight"
         />
       </div>
@@ -166,21 +170,21 @@ export function PresetList() {
                 : 'bg-background border-border text-muted-foreground hover:border-primary/60')
             }
           >
-            все
+            {t('presets.allTags')}
           </button>
-          {allTags.map(t => (
+          {allTags.map(tag => (
             <button
-              key={t}
+              key={tag}
               type="button"
-              onClick={() => setActiveTag(t === activeTag ? null : t)}
+              onClick={() => setActiveTag(tag === activeTag ? null : tag)}
               className={
                 'text-[11px] rounded-full px-2 py-0.5 border transition-colors ' +
-                (activeTag === t
+                (activeTag === tag
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-background border-border text-muted-foreground hover:border-primary/60')
               }
             >
-              #{t}
+              #{tag}
             </button>
           ))}
         </div>
@@ -189,7 +193,7 @@ export function PresetList() {
         <div className="flex flex-col gap-1 px-2 pb-2">
           {filtered.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-4">
-              Ничего не найдено
+              {t('presets.noneFound')}
             </div>
           )}
           {filtered.map(p => (
@@ -214,6 +218,7 @@ function PresetItem({ preset, onEdit }: { preset: Preset; onEdit: () => void }) 
   const rootId = useTreeStore(s => s.rootId);
   const applyOps = useTreeStore(s => s.applyOps);
   const removePreset = usePresetStore(s => s.remove);
+  const t = useT();
 
   const handleApply = () => {
     const tree = useTreeStore.getState();
@@ -244,12 +249,12 @@ function PresetItem({ preset, onEdit }: { preset: Preset; onEdit: () => void }) 
           )}
           {preset.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
-              {preset.tags.map(t => (
+              {preset.tags.map(tag => (
                 <span
-                  key={t}
+                  key={tag}
                   className="text-[10px] rounded-full border border-border px-1.5 py-0 text-muted-foreground"
                 >
-                  #{t}
+                  #{tag}
                 </span>
               ))}
             </div>
@@ -261,7 +266,7 @@ function PresetItem({ preset, onEdit }: { preset: Preset; onEdit: () => void }) 
           variant="ghost"
           size="icon"
           className="h-6 w-6"
-          aria-label="Редактировать"
+          aria-label={t('presets.edit')}
           onClick={onEdit}
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -270,7 +275,7 @@ function PresetItem({ preset, onEdit }: { preset: Preset; onEdit: () => void }) 
           variant="ghost"
           size="icon"
           className="h-6 w-6"
-          aria-label="Удалить"
+          aria-label={t('presets.delete')}
           onClick={() => removePreset(preset.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />

@@ -23,6 +23,11 @@ import { MonoText } from '@/components/common/MonoText';
 import { pickDirectory } from '@/lib/tauri';
 import { usePresetStore, useUIStore, useWatcherStore } from '@/stores';
 import type { RuleAction, WatcherRule } from '@/stores/watcherStore';
+import { useLocale, useT } from '@/lib/i18n';
+
+// Stable empty reference — returning a fresh `[]` on every selector call
+// breaks useSyncExternalStore's snapshot cache and causes an infinite loop.
+const EMPTY_RULES: readonly WatcherRule[] = Object.freeze([]);
 
 function WatcherCard({
   watchId,
@@ -37,7 +42,8 @@ function WatcherCard({
   eventCount: number;
   onRemove: () => void;
 }) {
-  const rules = useWatcherStore(s => s.rules[watchId] ?? []);
+  const rulesRaw = useWatcherStore(s => s.rules[watchId]);
+  const rules: readonly WatcherRule[] = rulesRaw ?? EMPTY_RULES;
   const addRule = useWatcherStore(s => s.addRule);
   const removeRule = useWatcherStore(s => s.removeRule);
   const updateRule = useWatcherStore(s => s.updateRule);
@@ -46,6 +52,7 @@ function WatcherCard({
   const [newGlob, setNewGlob] = useState('');
   const [newAction, setNewAction] = useState<RuleAction>('notify');
   const [newPresetId, setNewPresetId] = useState<string>(presets[0]?.id ?? '');
+  const t = useT();
 
   const handleAdd = () => {
     const g = newGlob.trim();
@@ -66,18 +73,18 @@ function WatcherCard({
           {path}
         </MonoText>
         <span className="text-muted-foreground shrink-0">
-          {recursive ? 'рекурсивно' : 'без вложенных'}
+          {recursive ? t('watchers.recursive') : t('watchers.nonRecursive')}
         </span>
         <span className="text-[11px] text-muted-foreground shrink-0">
-          · событий: {eventCount}
+          · {t('watchers.events')}: {eventCount}
         </span>
         <Button
           variant="ghost"
           size="icon"
           className="h-6 w-6"
           onClick={() => setShowRules(v => !v)}
-          aria-label="Правила"
-          title="Правила совпадений"
+          aria-label={t('watchers.rules')}
+          title={t('watchers.rulesHint')}
         >
           <Zap className="h-3 w-3" />
         </Button>
@@ -86,8 +93,8 @@ function WatcherCard({
           size="icon"
           className="h-6 w-6"
           onClick={onRemove}
-          aria-label="Остановить"
-          title="Остановить наблюдатель"
+          aria-label={t('watchers.stop')}
+          title={t('watchers.stop')}
         >
           <Trash2 className="h-3 w-3" />
         </Button>
@@ -111,7 +118,7 @@ function WatcherCard({
             <Input
               value={newGlob}
               onChange={e => setNewGlob(e.target.value)}
-              placeholder="маска (*.jpg)"
+              placeholder={t('watchers.rule.glob')}
               className="h-7 text-[11px] font-mono-tight flex-1 min-w-[100px]"
             />
             <select
@@ -119,8 +126,8 @@ function WatcherCard({
               onChange={e => setNewAction(e.target.value as RuleAction)}
               className="h-7 rounded-md border border-input bg-background px-1 text-[11px] font-mono-tight"
             >
-              <option value="notify">только отметить</option>
-              <option value="apply">применить пресет</option>
+              <option value="notify">{t('watchers.rule.notify')}</option>
+              <option value="apply">{t('watchers.rule.apply')}</option>
             </select>
             {newAction === 'apply' && (
               <select
@@ -140,14 +147,13 @@ function WatcherCard({
               size="icon"
               className="h-7 w-7"
               onClick={handleAdd}
-              aria-label="Добавить правило"
+              aria-label={t('watchers.addRule')}
             >
               <Plus className="h-3 w-3" />
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground leading-tight">
-            Правило срабатывает на событиях «создание». Маска матчится по имени
-            файла: <code>*</code>, <code>?</code>, <code>[abc]</code>.
+            {t('watchers.rule.hint')}
           </p>
         </div>
       )}
@@ -166,6 +172,7 @@ function RuleRow({
   onUpdate: (r: WatcherRule) => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   return (
     <li className="flex items-center gap-1 text-[11px] font-mono-tight">
       <MonoText className="shrink-0 rounded bg-muted px-1.5">
@@ -179,8 +186,8 @@ function RuleRow({
         }
         className="h-6 rounded border border-input bg-background px-1 text-[11px] font-mono-tight"
       >
-        <option value="notify">отметить</option>
-        <option value="apply">применить</option>
+        <option value="notify">{t('watchers.rule.shortNotify')}</option>
+        <option value="apply">{t('watchers.rule.shortApply')}</option>
       </select>
       {rule.action === 'apply' && (
         <select
@@ -188,7 +195,7 @@ function RuleRow({
           onChange={e => onUpdate({ ...rule, presetId: e.target.value || null })}
           className="h-6 rounded border border-input bg-background px-1 text-[11px] font-mono-tight flex-1 max-w-[200px]"
         >
-          <option value="">— выберите пресет —</option>
+          <option value="">{t('watchers.rule.choosePreset')}</option>
           {presets.map(p => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -201,7 +208,7 @@ function RuleRow({
         size="icon"
         className="h-5 w-5 ml-auto"
         onClick={onDelete}
-        aria-label="Удалить правило"
+        aria-label={t('watchers.deleteRule')}
       >
         <X className="h-3 w-3" />
       </Button>
@@ -227,6 +234,8 @@ export function WatchersDialog() {
   const unsubscribe = useWatcherStore(s => s.unsubscribe);
   const clearEvents = useWatcherStore(s => s.clearEvents);
   const load = useWatcherStore(s => s.load);
+  const t = useT();
+  const locale = useLocale();
 
   const [busy, setBusy] = useState(false);
 
@@ -257,27 +266,24 @@ export function WatchersDialog() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Eye className="h-5 w-5 text-primary" />
-            Наблюдатели папок
+            {t('watchers.title')}
           </DialogTitle>
-          <DialogDescription>
-            Структура отслеживает изменения в выбранных папках и пишет события в
-            журнал ниже. Наблюдение живёт до закрытия приложения.
-          </DialogDescription>
+          <DialogDescription>{t('watchers.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center gap-2 border-b border-border pb-2">
           <Button onClick={handleAdd} size="sm" disabled={busy}>
             <FolderPlus className="h-4 w-4" />
-            Добавить папку
+            {t('watchers.addFolder')}
           </Button>
           <span className="text-xs text-muted-foreground">
-            Активно: {watches.length}
+            {t('watchers.active')}: {watches.length}
           </span>
         </div>
 
         {watches.length === 0 ? (
           <div className="py-4 text-center text-sm text-muted-foreground">
-            Нет активных наблюдателей.
+            {t('watchers.empty')}
           </div>
         ) : (
           <div className="space-y-2 border-b border-border pb-2 max-h-[240px] overflow-y-auto scrollbar-thin">
@@ -296,7 +302,7 @@ export function WatchersDialog() {
 
         <div className="flex items-center justify-between">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            Журнал событий ({events.length})
+            {t('watchers.log')} ({events.length})
           </span>
           <Button
             variant="ghost"
@@ -305,13 +311,13 @@ export function WatchersDialog() {
             disabled={events.length === 0}
           >
             <X className="h-3.5 w-3.5" />
-            Очистить
+            {t('watchers.clearLog')}
           </Button>
         </div>
 
         {events.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">
-            События появятся здесь, когда файлы изменятся.
+            {t('watchers.noEvents')}
           </div>
         ) : (
           <ScrollArea className="max-h-[360px] rounded-md border border-border scrollbar-thin">
@@ -330,12 +336,14 @@ export function WatchersDialog() {
                       {e.kind}
                     </span>
                     <span className="text-muted-foreground">
-                      {new Date(e.timestamp).toLocaleTimeString('ru-RU')}
+                      {new Date(e.timestamp).toLocaleTimeString(
+                        locale === 'ru' ? 'ru-RU' : 'en-US',
+                      )}
                     </span>
                     {e.matchedRuleIds && e.matchedRuleIds.length > 0 && (
                       <span className="flex items-center gap-1 text-primary">
                         <CheckCircle2 className="h-3 w-3" />
-                        правило
+                        {t('watchers.matchedRule')}
                       </span>
                     )}
                     {e.appliedPresetNames && e.appliedPresetNames.length > 0 && (

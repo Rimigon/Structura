@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DirNode, TreeNode } from '@/types';
 import { MonoText } from '@/components/common/MonoText';
 import { useTreeStore } from '@/stores';
+import { useLocale, useT } from '@/lib/i18n';
 import { extractMetadata, isTauri, type MediaMetadata } from '@/lib/tauri';
 
 interface Props {
@@ -16,18 +17,6 @@ function humanSize(bytes: number): string {
   return `${val.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
 }
 
-const KIND_RU: Record<TreeNode['kind'], string> = {
-  file: 'файл',
-  dir: 'папка',
-};
-
-const DIRTY_RU: Record<NonNullable<TreeNode['dirty']>, string> = {
-  new: 'новый',
-  moved: 'перемещён',
-  renamed: 'переименован',
-  deleted: 'удалён',
-};
-
 const MEDIA_EXTS = new Set([
   'jpg', 'jpeg', 'tiff', 'tif', 'heic', 'heif', 'webp', 'png',
   'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aiff',
@@ -37,6 +26,8 @@ export function NodeDetails({ node }: Props) {
   const nodes = useTreeStore(s => s.nodes);
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
+  const t = useT();
+  const locale = useLocale();
 
   useEffect(() => {
     if (!isTauri() || node.kind !== 'file' || !node.originalPath) {
@@ -94,45 +85,49 @@ export function NodeDetails({ node }: Props) {
 
   return (
     <div className="space-y-3 text-sm">
-      <Field label="Имя">
+      <Field label={t('nd.name')}>
         <MonoText>{node.name}</MonoText>
       </Field>
-      <Field label="Тип">{KIND_RU[node.kind]}</Field>
+      <Field label={t('nd.type')}>{t(`nd.kind.${node.kind}`)}</Field>
       {node.kind === 'file' && (
         <>
-          <Field label="Размер">{humanSize(node.size)}</Field>
-          {node.ext && <Field label="Расширение">.{node.ext}</Field>}
+          <Field label={t('nd.size')}>{humanSize(node.size)}</Field>
+          {node.ext && <Field label={t('nd.ext')}>.{node.ext}</Field>}
           {node.modified > 0 && (
-            <Field label="Изменён">
-              {new Date(node.modified).toLocaleString('ru-RU')}
+            <Field label={t('nd.modified')}>
+              {new Date(node.modified).toLocaleString(
+                locale === 'ru' ? 'ru-RU' : 'en-US',
+              )}
             </Field>
           )}
         </>
       )}
       {stats && (
         <>
-          <Field label="Содержимое">
+          <Field label={t('nd.contents')}>
             <div className="font-mono-tight text-xs text-muted-foreground">
-              непосредственно: {stats.direct}
+              {t('nd.direct')}: {stats.direct}
             </div>
             <div className="font-mono-tight text-xs text-muted-foreground">
-              всего файлов: {stats.files}
+              {t('nd.totalFiles')}: {stats.files}
             </div>
             <div className="font-mono-tight text-xs text-muted-foreground">
-              всего папок: {stats.dirs}
+              {t('nd.totalDirs')}: {stats.dirs}
             </div>
           </Field>
-          <Field label="Суммарный размер">{humanSize(stats.total)}</Field>
+          <Field label={t('nd.totalSize')}>{humanSize(stats.total)}</Field>
         </>
       )}
       {node.originalPath && (
-        <Field label="Путь">
+        <Field label={t('nd.path')}>
           <MonoText className="break-all text-xs">{node.originalPath}</MonoText>
         </Field>
       )}
-      {node.dirty && <Field label="Статус">{DIRTY_RU[node.dirty]}</Field>}
+      {node.dirty && (
+        <Field label={t('nd.status')}>{t(`nd.dirty.${node.dirty}`)}</Field>
+      )}
       {metadata && hasAnyMeta(metadata) && (
-        <Field label="Метаданные">
+        <Field label={t('nd.metadata')}>
           <div className="font-mono-tight text-xs space-y-0.5">
             {metadata.exifDate && <div>📅 {metadata.exifDate}</div>}
             {metadata.exifCamera && <div>📷 {metadata.exifCamera}</div>}
@@ -152,7 +147,7 @@ export function NodeDetails({ node }: Props) {
       )}
       {metaError && (
         <div className="text-[11px] text-muted-foreground italic">
-          Метаданные недоступны
+          {t('nd.metaUnavailable')}
         </div>
       )}
     </div>

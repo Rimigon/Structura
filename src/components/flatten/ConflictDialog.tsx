@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MonoText } from '@/components/common/MonoText';
 import type { ConflictResolution, NodeId, PendingConflict } from '@/types';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   open: boolean;
@@ -21,23 +22,24 @@ interface Props {
 
 type Choice = ConflictResolution['kind'];
 
-const CHOICE_LABELS: Record<Choice, string> = {
-  'keep-both': 'Оставить оба',
-  newer: 'Взять более новый',
-  replace: 'Заменить',
-  skip: 'Пропустить',
+const CHOICE_KEY: Record<Choice, string> = {
+  'keep-both': 'conflict.choice.keepBoth',
+  newer: 'conflict.choice.newer',
+  replace: 'conflict.choice.replace',
+  skip: 'conflict.choice.skip',
 };
 
-const CHOICE_DESC: Record<Choice, string> = {
-  'keep-both': 'К имени добавится префикс папки или счётчик',
-  newer: 'По дате изменения; старый файл перейдёт в корзину',
-  replace: 'Существующий файл перейдёт в корзину',
-  skip: 'Файл останется на месте',
+const DESC_KEY: Record<Choice, string> = {
+  'keep-both': 'conflict.desc.keepBoth',
+  newer: 'conflict.desc.newer',
+  replace: 'conflict.desc.replace',
+  skip: 'conflict.desc.skip',
 };
 
 export function ConflictDialog({ open, conflicts, onResolve, onCancel }: Props) {
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [bulk, setBulk] = useState<Choice>('keep-both');
+  const t = useT();
 
   useEffect(() => {
     if (open) {
@@ -67,22 +69,23 @@ export function ConflictDialog({ open, conflicts, onResolve, onCancel }: Props) 
     <Dialog open={open} onOpenChange={v => !v && onCancel()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Конфликты имён при сведении</DialogTitle>
+          <DialogTitle>{t('conflict.title')}</DialogTitle>
           <DialogDescription>
-            Найдено совпадений: {conflicts.length}. Выберите, что сделать с каждым
-            файлом, или примените выбор ко всем.
+            {t('conflict.description')}: {conflicts.length}. {t('conflict.description2')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-          <span className="text-xs text-muted-foreground self-center">Для всех:</span>
-          {(Object.keys(CHOICE_LABELS) as Choice[]).map(ch => (
+          <span className="text-xs text-muted-foreground self-center">
+            {t('conflict.forAll')}:
+          </span>
+          {(Object.keys(CHOICE_KEY) as Choice[]).map(ch => (
             <Button
               key={ch}
               variant={bulk === ch ? 'default' : 'outline'}
               size="sm"
               onClick={() => applyBulk(ch)}
             >
-              {CHOICE_LABELS[ch]}
+              {t(CHOICE_KEY[ch])}
             </Button>
           ))}
         </div>
@@ -91,10 +94,13 @@ export function ConflictDialog({ open, conflicts, onResolve, onCancel }: Props) 
             {conflicts.map(c => (
               <li key={c.fileNodeId} className="p-2 space-y-1">
                 <MonoText className="text-xs break-all">
-                  {c.fileName} <span className="text-muted-foreground">(из {c.parentName})</span>
+                  {c.fileName}{' '}
+                  <span className="text-muted-foreground">
+                    ({t('conflict.from')} {c.parentName})
+                  </span>
                 </MonoText>
                 <div className="flex flex-wrap gap-1">
-                  {(Object.keys(CHOICE_LABELS) as Choice[]).map(ch => (
+                  {(Object.keys(CHOICE_KEY) as Choice[]).map(ch => (
                     <Button
                       key={ch}
                       variant={choices[c.fileNodeId] === ch ? 'default' : 'outline'}
@@ -102,9 +108,9 @@ export function ConflictDialog({ open, conflicts, onResolve, onCancel }: Props) 
                       onClick={() =>
                         setChoices(prev => ({ ...prev, [c.fileNodeId]: ch }))
                       }
-                      title={CHOICE_DESC[ch]}
+                      title={t(DESC_KEY[ch])}
                     >
-                      {CHOICE_LABELS[ch]}
+                      {t(CHOICE_KEY[ch])}
                     </Button>
                   ))}
                 </div>
@@ -114,9 +120,9 @@ export function ConflictDialog({ open, conflicts, onResolve, onCancel }: Props) 
         </ScrollArea>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            Отмена
+            {t('common.cancel')}
           </Button>
-          <Button onClick={handleApply}>Применить выбор</Button>
+          <Button onClick={handleApply}>{t('conflict.apply')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

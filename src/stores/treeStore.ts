@@ -121,12 +121,22 @@ export const useTreeStore = create<TreeStore>()(
         const state = get();
         const parent = state.nodes[parentId];
         if (!parent || parent.kind !== 'dir') return null;
-        const id = makeNewNodeId(`${parent.id}:${name}:${Date.now()}`);
+        // Auto-suffix to avoid collisions with existing (non-deleted) siblings.
+        // Without this, creating multiple new-file/new-folder entries silently
+        // produces identically-named nodes; on Apply all their touch/mkdir ops
+        // target the same path and only one survives.
+        const takenNames = new Set<string>();
+        for (const cid of (parent as DirNode).childIds) {
+          const sib = state.nodes[cid];
+          if (sib && sib.dirty !== 'deleted') takenNames.add(sib.name);
+        }
+        const uniqueNodeName = uniqueName(name, takenNames);
+        const id = makeNewNodeId(`${parent.id}:${uniqueNodeName}:${Date.now()}:${Math.random()}`);
         const newNode =
           kind === 'dir'
             ? ({
                 id,
-                name,
+                name: uniqueNodeName,
                 kind: 'dir',
                 parentId,
                 childIds: [],
@@ -135,12 +145,12 @@ export const useTreeStore = create<TreeStore>()(
               } satisfies DirNode)
             : {
                 id,
-                name,
+                name: uniqueNodeName,
                 kind: 'file' as const,
                 parentId,
                 size: 0,
                 modified: 0,
-                ext: extOf(name),
+                ext: extOf(uniqueNodeName),
                 dirty: 'new' as const,
               };
         set(s => {

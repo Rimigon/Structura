@@ -14,14 +14,9 @@ import { treeToJson, treeToMarkdown, treeToTabIndent } from '@/core/parser';
 import type { DirNode, NodeId, TreeNode, TreeState } from '@/types';
 import { useSelectionStore, useTreeStore, useUIStore } from '@/stores';
 import { isTauri, pickSaveFile, writeTextFile } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 
 type ExportFormat = 'tab' | 'markdown' | 'json';
-
-const EXTENSIONS: Record<ExportFormat, { ext: string; filter: string }> = {
-  tab: { ext: 'txt', filter: 'Текст' },
-  markdown: { ext: 'md', filter: 'Markdown' },
-  json: { ext: 'json', filter: 'JSON' },
-};
 
 export function ExportDialog() {
   const open = useUIStore(s => s.exportDialogOpen);
@@ -31,6 +26,13 @@ export function ExportDialog() {
   const nodes = useTreeStore(s => s.nodes);
   const rootFsPath = useTreeStore(s => s.rootFsPath);
   const multiSelect = useSelectionStore(s => s.multiSelect);
+  const t = useT();
+
+  const EXTENSIONS: Record<ExportFormat, { ext: string; filter: string }> = {
+    tab: { ext: 'txt', filter: t('export.filterText') },
+    markdown: { ext: 'md', filter: 'Markdown' },
+    json: { ext: 'json', filter: 'JSON' },
+  };
 
   const [exportRootId, setExportRootId] = useState<NodeId | null>(null);
   const [onlySelected, setOnlySelected] = useState(false);
@@ -109,7 +111,7 @@ export function ExportDialog() {
         (effectiveRoot ? nodes[effectiveRoot]?.name : 'tree') ?? 'tree';
       const suggested = `${rootName}.${ext}`;
       if (!isTauri()) {
-        setError('Сохранение в файл доступно только в приложении Tauri.');
+        setError(t('export.tauriOnly'));
         return;
       }
       const path = await pickSaveFile(suggested, filter, [ext]);
@@ -125,15 +127,13 @@ export function ExportDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Экспорт дерева в текст</DialogTitle>
-          <DialogDescription>
-            Выберите корневую папку, формат и способ вывода — в буфер или в файл.
-          </DialogDescription>
+          <DialogTitle>{t('export.title')}</DialogTitle>
+          <DialogDescription>{t('export.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Корневая папка</label>
+            <label className="text-xs text-muted-foreground">{t('export.root')}</label>
             <select
               value={effectiveRoot ?? ''}
               onChange={e => setExportRootId(e.target.value || null)}
@@ -148,28 +148,28 @@ export function ExportDialog() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Формат</label>
+            <label className="text-xs text-muted-foreground">{t('export.format')}</label>
             <div className="flex gap-1">
               <Button
                 variant={format === 'tab' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFormat('tab')}
               >
-                Табы
+                {t('export.formatTab')}
               </Button>
               <Button
                 variant={format === 'markdown' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFormat('markdown')}
               >
-                Markdown
+                {t('export.formatMarkdown')}
               </Button>
               <Button
                 variant={format === 'json' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFormat('json')}
               >
-                JSON
+                {t('export.formatJson')}
               </Button>
             </div>
           </div>
@@ -182,7 +182,7 @@ export function ExportDialog() {
             onChange={e => setOnlySelected(e.target.checked)}
             disabled={multiSelect.size === 0}
           />
-          Только выделенные ({multiSelect.size})
+          {t('export.onlySelected')} ({multiSelect.size})
         </label>
 
         <Textarea
@@ -194,7 +194,7 @@ export function ExportDialog() {
 
         {saved && (
           <div className="rounded-md border border-border bg-card/60 p-2 text-xs font-mono-tight text-muted-foreground">
-            Сохранено: {saved}
+            {t('export.saved')}: {saved}
           </div>
         )}
         {error && (
@@ -205,15 +205,15 @@ export function ExportDialog() {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Закрыть
+            {t('common.close')}
           </Button>
           <Button variant="outline" onClick={handleCopy}>
             <Download className="h-3.5 w-3.5" />
-            Копировать
+            {t('export.copy')}
           </Button>
           <Button onClick={handleSave}>
             <Save className="h-3.5 w-3.5" />
-            Сохранить в файл…
+            {t('export.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

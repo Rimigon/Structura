@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
   DndContext,
@@ -13,6 +13,8 @@ import type { SelectMods } from '@/stores/selectionStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSelectionStore, useTreeStore } from '@/stores';
 import { findMatchingIds } from '@/core/search/filterTree';
+import { isTauri, searchContent } from '@/lib/tauri';
+import { useT } from '@/lib/i18n';
 import { TreeRow } from './TreeRow';
 import { SearchBar } from './SearchBar';
 import { TreeContextMenu, type ContextMenuState } from './TreeContextMenu';
@@ -64,15 +66,73 @@ export function TreeCanvas() {
   const focusedId = useSelectionStore(s => s.focusedId);
   const editingId = useSelectionStore(s => s.editingId);
   const multiSelect = useSelectionStore(s => s.multiSelect);
+  const t = useT();
 
   const [query, setQuery] = useState('');
   const [filterMode, setFilterMode] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [contentSearch, setContentSearch] = useState(false);
+  const [contentMatches, setContentMatches] = useState<Set<NodeId>>(() => new Set());
+  const [contentScanning, setContentScanning] = useState(false);
 
-  const matchSet = useMemo(() => {
+  // Name-based match set (sync).
+  const nameMatchSet = useMemo(() => {
     if (!query.trim() || !rootId) return new Set<NodeId>();
     return new Set(findMatchingIds({ nodes, rootId, rootFsPath }, { pattern: query }));
   }, [query, nodes, rootId, rootFsPath]);
+
+  // Content-search effect (debounced). Runs only when enabled + Tauri + query >= 2 chars.
+  useEffect(() => {
+    if (!contentSearch || !isTauri() || !rootFsPath || query.trim().length < 2) {
+      setContentMatches(new Set());
+      setContentScanning(false);
+      return;
+    }
+    let cancelled = false;
+    setContentScanning(true);
+    const handle = window.setTimeout(async () => {
+      try {
+        const res = await searchContent(rootFsPath, query.trim(), {
+          maxResults: 5000,
+        });
+        if (cancelled) return;
+        const hitPaths = new Set<string>();
+        for (const m of res.matches) hitPaths.add(m.path);
+        // Build a lookup: originalPath -> nodeId
+        const pathToId = new Map<string, NodeId>();
+        for (const n of Object.values(nodes)) {
+          if (n.dirty === 'deleted') continue;
+          if (n.kind !== 'file') continue;
+          if (n.originalPath) pathToId.set(n.originalPath, n.id);
+        }
+        const ids = new Set<NodeId>();
+        for (const p of hitPaths) {
+          const id = pathToId.get(p);
+          if (id) ids.add(id);
+        }
+        setContentMatches(ids);
+      } catch {
+        if (!cancelled) setContentMatches(new Set());
+      } finally {
+        if (!cancelled) setContentScanning(false);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+      setContentScanning(false);
+    };
+  }, [contentSearch, rootFsPath, query, nodes]);
+
+  // Union of name and content matches.
+  const matchSet = useMemo(() => {
+    if (nameMatchSet.size === 0 && contentMatches.size === 0) {
+      return new Set<NodeId>();
+    }
+    const out = new Set<NodeId>(nameMatchSet);
+    for (const id of contentMatches) out.add(id);
+    return out;
+  }, [nameMatchSet, contentMatches]);
 
   const highlightSet = useMemo(() => {
     if (filterMode || matchSet.size === 0) return matchSet;
@@ -178,7 +238,7 @@ export function TreeCanvas() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground font-mono-tight text-sm gap-2">
         <FolderOpen className="h-8 w-8" />
-        <span>Откройте папку, чтобы начать работу</span>
+        <span>{t('tree.emptyState')}</span>
       </div>
     );
   }
@@ -190,12 +250,16 @@ export function TreeCanvas() {
         onChange={setQuery}
         filterMode={filterMode}
         onFilterModeChange={setFilterMode}
+        contentSearch={contentSearch}
+        onContentSearchChange={setContentSearch}
+        contentScanning={contentScanning}
+        contentMatchCount={contentMatches.size}
       />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <ScrollArea className="flex-1 w-full scrollbar-thin">
           <div
             role="tree"
-            aria-label="Дерево каталогов"
+            aria-label={t('tree.ariaLabel')}
             className="py-2"
             onClick={handleBackgroundClick}
           >
@@ -224,7 +288,7 @@ export function TreeCanvas() {
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
           <div className="flex items-center gap-2 rounded-md border border-border bg-card/80 px-3 py-2 text-xs font-mono-tight">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Сканирование…
+            {t('tree.scanning')}
           </div>
         </div>
       )}

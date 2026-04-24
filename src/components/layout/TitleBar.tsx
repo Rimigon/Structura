@@ -1,10 +1,24 @@
 import { useEffect, useState } from 'react';
-import { ArrowUp, Cog, Eye, FileSearch, FolderOpen, History, PictureInPicture, Save, Undo2, Redo2, RefreshCw } from 'lucide-react';
+import {
+  ArrowUp,
+  BookOpen,
+  Cog,
+  Eye,
+  FileSearch,
+  FolderOpen,
+  History,
+  PictureInPicture,
+  Save,
+  Undo2,
+  Redo2,
+  RefreshCw,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { openFloatingWidget, pickDirectory } from '@/lib/tauri';
 import { useTreeStore, useUIStore, useTreeHistory } from '@/stores';
+import { useT } from '@/lib/i18n';
 import { ThemePicker } from './ThemePicker';
 
 function parentOf(path: string): string | null {
@@ -25,10 +39,12 @@ export function TitleBar() {
   const setDedupDialogOpen = useUIStore(s => s.setDedupDialogOpen);
   const setWatchersDialogOpen = useUIStore(s => s.setWatchersDialogOpen);
   const setSettingsDialogOpen = useUIStore(s => s.setSettingsDialogOpen);
+  const setHelpDialogOpen = useUIStore(s => s.setHelpDialogOpen);
   const dirtyCount = useTreeStore(s =>
     Object.values(s.nodes).filter(n => n.dirty).length,
   );
   const history = useTreeHistory();
+  const t = useT();
 
   const [pathInput, setPathInput] = useState(rootFsPath ?? '');
   useEffect(() => {
@@ -66,18 +82,18 @@ export function TitleBar() {
         size="sm"
         onClick={handleOpen}
         disabled={loading}
-        aria-label="Открыть папку"
+        aria-label={t('titlebar.open')}
       >
         <FolderOpen className="h-4 w-4" />
-        Открыть
+        {t('titlebar.open')}
       </Button>
       <Button
         variant="ghost"
         size="icon"
         onClick={handleUp}
         disabled={loading || !rootFsPath || !parentOf(rootFsPath)}
-        aria-label="На уровень выше"
-        title="На уровень выше"
+        aria-label={t('titlebar.up')}
+        title={t('titlebar.up')}
       >
         <ArrowUp className="h-4 w-4" />
       </Button>
@@ -86,18 +102,18 @@ export function TitleBar() {
         size="sm"
         onClick={handleRefresh}
         disabled={loading || !rootFsPath}
-        aria-label="Обновить"
+        aria-label={t('titlebar.refresh')}
       >
         <RefreshCw className="h-4 w-4" />
-        Обновить
+        {t('titlebar.refresh')}
       </Button>
       <Separator orientation="vertical" className="h-6 mx-1" />
       <Button
         variant="ghost"
         size="icon"
         onClick={() => history.getState().undo()}
-        aria-label="Отменить"
-        title="Отменить"
+        aria-label={t('titlebar.undo')}
+        title={t('titlebar.undo')}
       >
         <Undo2 className="h-4 w-4" />
       </Button>
@@ -105,8 +121,8 @@ export function TitleBar() {
         variant="ghost"
         size="icon"
         onClick={() => history.getState().redo()}
-        aria-label="Повторить"
-        title="Повторить"
+        aria-label={t('titlebar.redo')}
+        title={t('titlebar.redo')}
       >
         <Redo2 className="h-4 w-4" />
       </Button>
@@ -114,8 +130,8 @@ export function TitleBar() {
         variant="ghost"
         size="icon"
         onClick={() => setHistoryDialogOpen(true)}
-        aria-label="История транзакций"
-        title="История транзакций"
+        aria-label={t('titlebar.history')}
+        title={t('titlebar.history')}
       >
         <History className="h-4 w-4" />
       </Button>
@@ -124,8 +140,8 @@ export function TitleBar() {
         size="icon"
         onClick={() => setDedupDialogOpen(true)}
         disabled={!rootFsPath}
-        aria-label="Поиск дубликатов"
-        title="Поиск дубликатов"
+        aria-label={t('titlebar.dedup')}
+        title={t('titlebar.dedup')}
       >
         <FileSearch className="h-4 w-4" />
       </Button>
@@ -133,8 +149,8 @@ export function TitleBar() {
         variant="ghost"
         size="icon"
         onClick={() => setWatchersDialogOpen(true)}
-        aria-label="Наблюдатели папок"
-        title="Наблюдатели папок"
+        aria-label={t('titlebar.watchers')}
+        title={t('titlebar.watchers')}
       >
         <Eye className="h-4 w-4" />
       </Button>
@@ -142,17 +158,26 @@ export function TitleBar() {
         variant="ghost"
         size="icon"
         onClick={() => openFloatingWidget().catch(() => void 0)}
-        aria-label="Плавающий виджет"
-        title="Плавающий виджет"
+        aria-label={t('titlebar.widget')}
+        title={t('titlebar.widget')}
       >
         <PictureInPicture className="h-4 w-4" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
+        onClick={() => setHelpDialogOpen(true)}
+        aria-label={t('titlebar.help')}
+        title={t('titlebar.help')}
+      >
+        <BookOpen className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={() => setSettingsDialogOpen(true)}
-        aria-label="Настройки"
-        title="Настройки"
+        aria-label={t('titlebar.settings')}
+        title={t('titlebar.settings')}
       >
         <Cog className="h-4 w-4" />
       </Button>
@@ -166,7 +191,7 @@ export function TitleBar() {
           }
         }}
         onBlur={handleSubmitPath}
-        placeholder="Путь к папке (Enter для открытия)"
+        placeholder={t('titlebar.pathPlaceholder')}
         className="flex-1 h-8 font-mono-tight text-xs"
       />
       <Button
@@ -176,7 +201,8 @@ export function TitleBar() {
         onClick={() => setApplyDialogOpen(true)}
       >
         <Save className="h-4 w-4" />
-        Применить{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
+        {t('titlebar.applyButton')}
+        {dirtyCount > 0 ? ` (${dirtyCount})` : ''}
       </Button>
       <ThemePicker />
     </div>

@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "widget",
+  "description": "Capabilities for the floating drop widget. Needs event emit/listen for drop handoff and window dragging for the transparent chrome.",
+  "windows": ["structura-widget"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:webview:allow-webview-close",
+    "core:event:allow-emit",
+    "core:event:allow-emit-to",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}
