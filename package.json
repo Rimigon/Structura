@@ -1,7 +1,7 @@
 {
   "name": "structura",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Ultimate file management utility — visualize, transform, and automate directory structures in a sandbox before touching disk.",
   "scripts": {

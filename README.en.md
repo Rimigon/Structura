@@ -57,6 +57,61 @@ Windows · macOS · Linux. Built with Tauri 2 (Rust) + React 18 + TypeScript + T
 - **Customisable hotkeys** — Settings → Hotkeys: click a chip + press keys → new binding, `Esc` to cancel, `Delete` to reset that row, "Reset all" button. 17 actions. Stored in `uiStore`, matched on `e.code` — stable across keyboard layouts.
 - **Visual Apply dialog** — 6 metric cards (total / +added / →moved / ~renamed / ×removed / estimated size) double as filter tabs. Renames and moves render with a split "from → to" preview that highlights the shared path prefix. Separate file / dir counters. Disk-space indicator with status icon.
 
+## Install from a pre-built release
+
+The simplest path — grab an installer from the **[Releases](../../releases)** page and run it. Building from source is only needed for contributors (see the next section).
+
+### Windows
+
+1. From the release page, download `Structura_<version>_x64-setup.exe` (NSIS, smaller) or `Structura_<version>_x64_en-US.msi` (classic MSI).
+2. Run it. Windows SmartScreen may warn "Unknown publisher" — click **"More info → Run anyway"**. The installer is not signed with an EV certificate (overkill for a pet project), but the binary is built on GitHub Actions and a checksum is published next to the asset for verification.
+3. To use symlink operations, enable Developer Mode: `Settings → Privacy & Security → For developers → Developer Mode`. Without it, Windows symlinks require running the app as admin.
+
+### macOS
+
+1. Download `Structura_<version>_universal.dmg` — universal build for Intel and Apple Silicon.
+2. Open the `.dmg`, drag `Structura.app` into `Applications`.
+3. On first launch macOS may say **"Structura is damaged and can't be opened"** — this is the Gatekeeper quarantine flag, not actual damage. Remove it with one command in Terminal:
+   ```sh
+   xattr -cr /Applications/Structura.app
+   ```
+   The app is not signed (an Apple Developer ID costs $99/year), so Gatekeeper blocks it by default. The command above strips the quarantine attribute and macOS will launch the app.
+
+### Linux
+
+- **Debian / Ubuntu (`.deb`):**
+  ```sh
+  sudo dpkg -i structura_<version>_amd64.deb
+  sudo apt -f install   # pulls missing deps if dpkg complains
+  ```
+- **Any distro (AppImage):**
+  ```sh
+  chmod +x Structura_<version>_amd64.AppImage
+  ./Structura_<version>_amd64.AppImage
+  ```
+  The AppImage needs no installation and runs from anywhere.
+
+### How releases are built
+
+The workflow at `.github/workflows/release.yml` triggers on every push of a `v*` tag. It spins up three GitHub Actions runners (`windows-latest`, `macos-latest`, `ubuntu-22.04`), runs `pnpm tauri:build` on each, and creates a draft release with all artifacts auto-uploaded: `.msi` + `-setup.exe` (Windows), `.dmg` + `.app.tar.gz` (macOS universal), `.deb` + `.AppImage` (Linux).
+
+To cut a new version (for maintainers):
+
+```sh
+# 1. Bump the version in all three files in sync:
+#    package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml
+
+# 2. Commit and push
+git commit -am "chore: bump version to 0.3.0"
+git push
+
+# 3. Tag and push the tag (pushing the tag is what triggers the workflow)
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+After ~15–20 minutes there will be three green builds under `Actions` and a draft release under `Releases`. Add a changelog and publish.
+
 ## Prerequisites & from-scratch setup
 
 ### Dependencies at a glance
