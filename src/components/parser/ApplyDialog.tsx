@@ -3,14 +3,19 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   FileText,
   Folder,
+  FolderTree,
   HardDrive,
+  Layers,
   Loader2,
   Move,
   Pencil,
   Play,
   Plus,
+  Search,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -23,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MonoText } from '@/components/common/MonoText';
 import { summarize } from '@/core/diff';
@@ -99,6 +105,11 @@ export function ApplyDialog() {
   const required = useMemo(() => estimateBytes(state, ops), [state, ops]);
 
   const [filter, setFilter] = useState<FilterKind>('all');
+  const [search, setSearch] = useState('');
+  const [groupBy, setGroupBy] = useState<'kind' | 'dir'>('kind');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(
+    {},
+  );
   const [result, setResult] = useState<TxResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [disk, setDisk] = useState<DiskCheck | null>(null);
@@ -151,10 +162,49 @@ export function ApplyDialog() {
   );
 
   const filteredDiff = useMemo(() => {
-    const list = diff.filter(e => e.kind !== 'unchanged');
-    if (filter === 'all') return list;
-    return list.filter(e => e.kind === filter);
-  }, [diff, filter]);
+    let list = diff.filter(e => e.kind !== 'unchanged');
+    if (filter !== 'all') list = list.filter(e => e.kind === filter);
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(e => {
+        const a = (e.fromPath ?? '').toLowerCase();
+        const b = (e.toPath ?? '').toLowerCase();
+        return a.includes(q) || b.includes(q);
+      });
+    }
+    return list;
+  }, [diff, filter, search]);
+
+  const groupedDiff = useMemo(() => {
+    const groups: { key: string; label: string; entries: DiffEntry[] }[] = [];
+    if (groupBy === 'kind') {
+      const order: Exclude<DiffKind, 'unchanged'>[] = [
+        'added',
+        'moved',
+        'renamed',
+        'removed',
+      ];
+      for (const k of order) {
+        const entries = filteredDiff.filter(e => e.kind === k);
+        if (entries.length > 0) groups.push({ key: k, label: t(`apply.${k}`), entries });
+      }
+    } else {
+      const byDir = new Map<string, DiffEntry[]>();
+      for (const e of filteredDiff) {
+        const p = e.toPath ?? e.fromPath ?? '';
+        const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+        const dir = idx > 0 ? p.slice(0, idx) : '/';
+        const bucket = byDir.get(dir) ?? [];
+        bucket.push(e);
+        byDir.set(dir, bucket);
+      }
+      const sortedKeys = Array.from(byDir.keys()).sort();
+      for (const k of sortedKeys) {
+        groups.push({ key: k, label: k || '/', entries: byDir.get(k)! });
+      }
+    }
+    return groups;
+  }, [filteredDiff, groupBy, t]);
 
   const handleApply = async () => {
     if (!state.rootFsPath) return;
@@ -259,8 +309,8 @@ export function ApplyDialog() {
               />
             </div>
 
-            {/* File / dir breakdown ---------------------------------------- */}
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono-tight">
+            {/* File / dir breakdown + group toggle + search ---------------- */}
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono-tight flex-wrap">
               <span className="flex items-center gap-1">
                 <FileText className="h-3 w-3" />
                 {t('apply.files')}: <strong className="text-foreground">{fileCount}</strong>
@@ -269,25 +319,96 @@ export function ApplyDialog() {
                 <Folder className="h-3 w-3" />
                 {t('apply.dirs')}: <strong className="text-foreground">{dirCount}</strong>
               </span>
-              <span className="ml-auto text-[10px] uppercase tracking-wide">
+              <span className="text-[10px] uppercase tracking-wide ml-2">
                 {filter === 'all' ? t('apply.showAll') : t(`apply.${filter}`)}:{' '}
                 <strong className="text-foreground">{counts[filter]}</strong>
               </span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant={groupBy === 'kind' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => setGroupBy('kind')}
+                  aria-pressed={groupBy === 'kind'}
+                >
+                  <Layers className="h-3 w-3" />
+                  {t('apply.groupByKind')}
+                </Button>
+                <Button
+                  type="button"
+                  variant={groupBy === 'dir' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => setGroupBy('dir')}
+                  aria-pressed={groupBy === 'dir'}
+                >
+                  <FolderTree className="h-3 w-3" />
+                  {t('apply.groupByDir')}
+                </Button>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={t('apply.searchPlaceholder')}
+                className="h-7 pl-7 text-xs font-mono-tight"
+              />
             </div>
 
             {/* Operation list ---------------------------------------------- */}
             <ScrollArea className="h-[320px] rounded-md border border-border p-1 scrollbar-thin">
-              <ul className="space-y-1">
-                {filteredDiff.length === 0 ? (
-                  <li className="py-4 text-center text-xs text-muted-foreground">
-                    {t('apply.empty')}
-                  </li>
-                ) : (
-                  filteredDiff.map(entry => (
-                    <OperationRow key={entry.nodeId} entry={entry} state={state} t={t} />
-                  ))
-                )}
-              </ul>
+              {filteredDiff.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">
+                  {t('apply.empty')}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {groupedDiff.map(group => {
+                    const collapsed = collapsedGroups[group.key] ?? false;
+                    return (
+                      <section key={group.key}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCollapsedGroups(prev => ({
+                              ...prev,
+                              [group.key]: !collapsed,
+                            }))
+                          }
+                          className="sticky top-0 z-10 w-full flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wide bg-card/95 backdrop-blur border-b border-border/60 hover:bg-card font-mono-tight"
+                        >
+                          {collapsed ? (
+                            <ChevronRight className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                          <span className="text-foreground truncate" title={group.label}>
+                            {group.label}
+                          </span>
+                          <span className="ml-auto text-muted-foreground">
+                            {group.entries.length}
+                          </span>
+                        </button>
+                        {!collapsed && (
+                          <ul className="space-y-1 py-1">
+                            {group.entries.map(entry => (
+                              <OperationRow
+                                key={entry.nodeId}
+                                entry={entry}
+                                state={state}
+                                t={t}
+                              />
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
             </ScrollArea>
           </>
         )}

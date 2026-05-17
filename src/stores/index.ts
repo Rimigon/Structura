@@ -1,4 +1,11 @@
-export { useTreeStore, useTreeHistory } from './treeStore';
+export {
+  useTreeStore,
+  useTreeHistory,
+  undoTree,
+  redoTree,
+  snapshotExpanded,
+  restoreExpanded,
+} from './treeStore';
 export { useSelectionStore } from './selectionStore';
 export { usePresetStore } from './presetStore';
 export { useUIStore } from './uiStore';

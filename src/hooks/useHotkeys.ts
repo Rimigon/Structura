@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSelectionStore, useTreeHistory, useTreeStore, useUIStore } from '@/stores';
+import { useSelectionStore, useTreeStore, useUIStore, undoTree, redoTree } from '@/stores';
 import { matchHotkey, DEFAULT_HOTKEYS } from '@/stores/uiStore';
 import type { HotkeySpec } from '@/stores/uiStore';
 import { defaultNodeName } from '@/lib/i18n';
@@ -47,6 +47,16 @@ export function useHotkeys() {
         ui.setHelpDialogOpen(true);
         return;
       }
+      if (match(hk.togglePresets)) {
+        e.preventDefault();
+        ui.toggleLeftPanel();
+        return;
+      }
+      if (match(hk.toggleInspector)) {
+        e.preventDefault();
+        ui.toggleRightPanel();
+        return;
+      }
       if (match(hk.rescan)) {
         e.preventDefault();
         const root = useTreeStore.getState().rootFsPath;
@@ -59,12 +69,12 @@ export function useHotkeys() {
 
       if (match(hk.undo)) {
         e.preventDefault();
-        useTreeHistory().getState().undo();
+        undoTree();
         return;
       }
       if (match(hk.redo) || match(redoAlias)) {
         e.preventDefault();
-        useTreeHistory().getState().redo();
+        redoTree();
         return;
       }
       if (match(hk.copyNames)) {

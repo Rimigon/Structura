@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useTreeStore } from '@/stores';
+import { useTreeStore, useUIStore } from '@/stores';
 import { summarize } from '@/core/diff';
 import { diffFromDirtyFlags } from '@/core/diff/computeDiff';
 import { useT } from '@/lib/i18n';
@@ -9,6 +9,8 @@ export function StatusBar() {
   const rootId = useTreeStore(s => s.rootId);
   const rootFsPath = useTreeStore(s => s.rootFsPath);
   const error = useTreeStore(s => s.error);
+  const notification = useUIStore(s => s.notification);
+  const clearNotification = useUIStore(s => s.clearNotification);
   const t = useT();
   const summary = useMemo(
     () => summarize(diffFromDirtyFlags({ nodes, rootId, rootFsPath })),
@@ -34,6 +36,21 @@ export function StatusBar() {
           </>
         )}
       </div>
+      {notification && (
+        <button
+          type="button"
+          onClick={clearNotification}
+          className={
+            'font-mono-tight px-2 py-0.5 rounded transition-opacity hover:opacity-80 ' +
+            (notification.level === 'warn'
+              ? 'text-diff-renamed bg-diff-renamed/10'
+              : 'text-primary bg-primary/10')
+          }
+          title={t('status.dismissNotification')}
+        >
+          {notification.message}
+        </button>
+      )}
       {error && (
         <div className="text-destructive font-mono-tight">
           {t('common.error')}: {error}

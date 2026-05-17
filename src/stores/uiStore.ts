@@ -65,6 +65,8 @@ export type HotkeyAction =
   | 'outdent'
   | 'newFile'
   | 'newFolder'
+  | 'togglePresets'
+  | 'toggleInspector'
   | 'help';
 
 export interface HotkeySpec {
@@ -92,6 +94,8 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   'outdent',
   'newFile',
   'newFolder',
+  'togglePresets',
+  'toggleInspector',
   'help',
 ];
 
@@ -112,12 +116,23 @@ export const DEFAULT_HOTKEYS: Record<HotkeyAction, HotkeySpec> = {
   outdent: { primary: 'Tab', shift: true },
   newFile: { primary: 'Enter' },
   newFolder: { primary: 'Enter', alt: true },
+  togglePresets: { primary: 'KeyB', ctrl: true },
+  toggleInspector: { primary: 'KeyJ', ctrl: true },
   help: { primary: 'F1' },
 };
+
+export interface UINotification {
+  message: string;
+  level: 'info' | 'warn';
+  /** Epoch ms — used to ignore stale auto-dismiss timers. */
+  issuedAt: number;
+}
 
 interface UIState {
   leftPanelSize: number;
   rightPanelSize: number;
+  leftPanelVisible: boolean;
+  rightPanelVisible: boolean;
   theme: ThemeId;
   locale: Locale;
   hotkeys: Record<HotkeyAction, HotkeySpec>;
@@ -129,10 +144,18 @@ interface UIState {
   watchersDialogOpen: boolean;
   settingsDialogOpen: boolean;
   helpDialogOpen: boolean;
+  updateDialogOpen: boolean;
   batchRenameTarget: string | null;
   /** When set, BatchRename renames these specific node IDs (instead of all children of a folder). */
   batchRenameSelection: string[] | null;
+  notification: UINotification | null;
+  /** When true, the app checks GitHub Releases for a newer version on launch (≤1×/day). */
+  autoCheckUpdates: boolean;
+  /** Epoch ms of the last attempt (used to throttle auto-checks to once per 24h). */
+  lastUpdateCheckAt: number;
   setPanelSizes(left: number, right: number): void;
+  toggleLeftPanel(): void;
+  toggleRightPanel(): void;
   setTheme(theme: ThemeId): void;
   setLocale(locale: Locale): void;
   setHotkey(action: HotkeyAction, spec: HotkeySpec): void;
@@ -145,8 +168,14 @@ interface UIState {
   setWatchersDialogOpen(open: boolean): void;
   setSettingsDialogOpen(open: boolean): void;
   setHelpDialogOpen(open: boolean): void;
+  setUpdateDialogOpen(open: boolean): void;
+  setAutoCheckUpdates(v: boolean): void;
+  setLastUpdateCheckAt(t: number): void;
   setBatchRenameTarget(id: string | null): void;
   setBatchRenameSelection(ids: string[] | null): void;
+  /** Auto-dismisses after 5s unless replaced. */
+  pushNotification(message: string, level?: 'info' | 'warn'): void;
+  clearNotification(): void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -154,6 +183,8 @@ export const useUIStore = create<UIState>()(
     set => ({
       leftPanelSize: 20,
       rightPanelSize: 25,
+      leftPanelVisible: true,
+      rightPanelVisible: true,
       theme: 'structura-dark',
       locale: 'ru',
       hotkeys: { ...DEFAULT_HOTKEYS },
@@ -165,10 +196,18 @@ export const useUIStore = create<UIState>()(
       watchersDialogOpen: false,
       settingsDialogOpen: false,
       helpDialogOpen: false,
+      updateDialogOpen: false,
       batchRenameTarget: null,
       batchRenameSelection: null,
+      notification: null,
+      autoCheckUpdates: true,
+      lastUpdateCheckAt: 0,
       setPanelSizes: (left, right) =>
         set({ leftPanelSize: left, rightPanelSize: right }),
+      toggleLeftPanel: () =>
+        set(s => ({ leftPanelVisible: !s.leftPanelVisible })),
+      toggleRightPanel: () =>
+        set(s => ({ rightPanelVisible: !s.rightPanelVisible })),
       setTheme: theme => set({ theme }),
       setLocale: locale => set({ locale }),
       setHotkey: (action, spec) =>
@@ -182,30 +221,66 @@ export const useUIStore = create<UIState>()(
       setWatchersDialogOpen: open => set({ watchersDialogOpen: open }),
       setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
       setHelpDialogOpen: open => set({ helpDialogOpen: open }),
+      setUpdateDialogOpen: open => set({ updateDialogOpen: open }),
+      setAutoCheckUpdates: v => set({ autoCheckUpdates: v }),
+      setLastUpdateCheckAt: t => set({ lastUpdateCheckAt: t }),
       setBatchRenameTarget: id => set({ batchRenameTarget: id }),
       setBatchRenameSelection: ids => set({ batchRenameSelection: ids }),
+      pushNotification: (message, level = 'info') => {
+        const issuedAt = Date.now();
+        set({ notification: { message, level, issuedAt } });
+        setTimeout(() => {
+          if (useUIStore.getState().notification?.issuedAt === issuedAt) {
+            set({ notification: null });
+          }
+        }, 5000);
+      },
+      clearNotification: () => set({ notification: null }),
     }),
     {
       name: 'structura-ui',
-      version: 3,
+      version: 5,
       partialize: state => ({
         leftPanelSize: state.leftPanelSize,
         rightPanelSize: state.rightPanelSize,
+        leftPanelVisible: state.leftPanelVisible,
+        rightPanelVisible: state.rightPanelVisible,
         theme: state.theme,
         locale: state.locale,
         hotkeys: state.hotkeys,
+        autoCheckUpdates: state.autoCheckUpdates,
+        lastUpdateCheckAt: state.lastUpdateCheckAt,
       }),
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<UIState>;
-        // v2 → v3: introduce locale + hotkeys
+        let next: Partial<UIState> = p;
         if (version < 3) {
-          return {
-            ...p,
-            locale: p.locale ?? 'ru',
-            hotkeys: p.hotkeys ?? { ...DEFAULT_HOTKEYS },
-          } as UIState;
+          next = {
+            ...next,
+            locale: next.locale ?? 'ru',
+            hotkeys: next.hotkeys ?? { ...DEFAULT_HOTKEYS },
+          };
         }
-        return p as UIState;
+        if (version < 4) {
+          next = {
+            ...next,
+            leftPanelVisible: next.leftPanelVisible ?? true,
+            rightPanelVisible: next.rightPanelVisible ?? true,
+            hotkeys: {
+              ...DEFAULT_HOTKEYS,
+              ...(next.hotkeys ?? {}),
+            },
+          };
+        }
+        // v4 → v5: auto-update preferences
+        if (version < 5) {
+          next = {
+            ...next,
+            autoCheckUpdates: next.autoCheckUpdates ?? true,
+            lastUpdateCheckAt: next.lastUpdateCheckAt ?? 0,
+          };
+        }
+        return next as UIState;
       },
     },
   ),

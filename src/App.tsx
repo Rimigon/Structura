@@ -16,7 +16,10 @@ import { WatchersDialog } from '@/components/watcher/WatchersDialog';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { BatchRenameDialog } from '@/components/rename/BatchRenameDialog';
 import { HelpDialog } from '@/components/common/HelpDialog';
+import { UpdateDialog } from '@/components/updater/UpdateDialog';
 import { useHotkeys } from '@/hooks/useHotkeys';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import { UpdaterContext, useUpdater } from '@/hooks/useUpdater';
 import { usePresetStore, useTreeStore, useUIStore, useWatcherStore } from '@/stores';
 import { THEMES } from '@/stores/uiStore';
 import { isTauri } from '@/lib/tauri';
@@ -25,6 +28,8 @@ import { listen } from '@tauri-apps/api/event';
 
 export default function App() {
   useHotkeys();
+  useAutoRefresh();
+  const updater = useUpdater();
   const theme = useUIStore(s => s.theme);
 
   useEffect(() => {
@@ -61,33 +66,48 @@ export default function App() {
         /* ignore */
       }
     });
+    // Launched with a folder argument (Windows shell integration). The Rust
+    // setup() emits this once the webview is up.
+    const unlistenArg = listen<string>('open-folder-arg', async ev => {
+      const path = ev.payload;
+      if (!path) return;
+      try {
+        await useTreeStore.getState().scanRoot(path);
+      } catch {
+        /* ignore */
+      }
+    });
     return () => {
       unlistenWatch.then(fn => fn()).catch(() => void 0);
       unlistenDrop.then(fn => fn()).catch(() => void 0);
+      unlistenArg.then(fn => fn()).catch(() => void 0);
     };
   }, []);
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex h-screen w-screen flex-col bg-background text-foreground">
-        <TitleBar />
-        <ThreePaneShell
-          left={<PresetList />}
-          center={<TreeCanvas />}
-          right={<Inspector />}
-        />
-        <ActionBar />
-        <StatusBar />
-        <ImportDialog />
-        <ExportDialog />
-        <ApplyDialog />
-        <TxHistoryDialog />
-        <DedupDialog />
-        <WatchersDialog />
-        <SettingsDialog />
-        <BatchRenameDialog />
-        <HelpDialog />
-      </div>
-    </TooltipProvider>
+    <UpdaterContext.Provider value={updater}>
+      <TooltipProvider delayDuration={300}>
+        <div className="flex h-screen w-screen flex-col bg-background text-foreground">
+          <TitleBar />
+          <ThreePaneShell
+            left={<PresetList />}
+            center={<TreeCanvas />}
+            right={<Inspector />}
+          />
+          <ActionBar />
+          <StatusBar />
+          <ImportDialog />
+          <ExportDialog />
+          <ApplyDialog />
+          <TxHistoryDialog />
+          <DedupDialog />
+          <WatchersDialog />
+          <SettingsDialog />
+          <BatchRenameDialog />
+          <HelpDialog />
+          <UpdateDialog />
+        </div>
+      </TooltipProvider>
+    </UpdaterContext.Provider>
   );
 }

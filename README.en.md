@@ -112,6 +112,35 @@ git push origin v0.3.0
 
 After ~15–20 minutes there will be three green builds under `Actions` and a draft release under `Releases`. Add a changelog and publish.
 
+### Auto-updates (`tauri-plugin-updater`)
+
+Structura can check GitHub Releases for a newer version and install a signed installer with one click. To make this work, the maintainer must generate a signing keypair once and store it as repo secrets.
+
+1. **Generate the ed25519 keypair**:
+   ```sh
+   pnpm tauri signer generate -w ~/.tauri/structura-updater.key
+   # Windows PowerShell:
+   # pnpm tauri signer generate -w $env:USERPROFILE\.tauri\structura-updater.key
+   ```
+   You'll be asked for a password. Two files are created:
+   - `structura-updater.key` — private (**never commit**)
+   - `structura-updater.key.pub` — public
+
+2. **Paste the public key** into `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`, replacing `REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY` with the single base64 string from `.pub`.
+
+3. **Add GitHub Secrets** (`Settings → Secrets and variables → Actions → New repository secret`):
+   - `TAURI_SIGNING_PRIVATE_KEY` — full contents of `structura-updater.key`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the password from step 1
+
+4. **Publish the release** (you must hit *Publish* on the draft — leaving it as draft makes `releases/latest/download/...` return 404). `tauri-action` automatically adds a signed `latest.json` next to the installers.
+
+The endpoint the app polls is set in `tauri.conf.json`:
+```
+https://github.com/Rimigon/Structura/releases/latest/download/latest.json
+```
+
+On the client side the check is enabled by default (Settings → Updates) and runs at most once every 24 hours. Users can disable auto-check or run "Check now" at any time.
+
 ## Prerequisites & from-scratch setup
 
 ### Dependencies at a glance

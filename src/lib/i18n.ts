@@ -49,6 +49,8 @@ const RU: Dict = {
   'titlebar.help': 'Справка и инструкции',
   'titlebar.pathPlaceholder': 'Путь к папке (Enter для открытия)',
   'titlebar.applyButton': 'Применить',
+  'titlebar.toggleLeft': 'Скрыть/показать левую панель',
+  'titlebar.toggleRight': 'Скрыть/показать правую панель',
 
   // actionbar
   'actionbar.expected': 'Ожидаемое действие',
@@ -80,7 +82,9 @@ const RU: Dict = {
   'apply.errors': 'с ошибками',
   'apply.skipped': 'пропущено',
   'apply.applying': 'Применение…',
-  'apply.groupByKind': 'Группировать по типу',
+  'apply.groupByKind': 'По типу',
+  'apply.groupByDir': 'По папке',
+  'apply.searchPlaceholder': 'Поиск по пути…',
   'apply.showAll': 'Все операции',
   'apply.from': 'откуда',
   'apply.to': 'куда',
@@ -152,7 +156,38 @@ const RU: Dict = {
   'settings.shellNotInstalled': 'не установлено',
   'settings.shellPlatform': 'Платформа',
   'settings.shellOther': 'Поддержка других ОС в планах.',
+  'settings.shellTipWin11':
+    'В Windows 11 пункт «Открыть в Structura» может быть скрыт под «Показать дополнительные параметры» (или Shift+ПКМ). Если после установки пункт не появился — нажмите «Перезапустить Проводник».',
+  'settings.restartExplorer': 'Перезапустить Проводник',
+  'settings.restartExplorerHint':
+    'Перезагружает explorer.exe — нужно, чтобы Windows подхватил свежие записи реестра.',
+  'settings.restartExplorerConfirm':
+    'Перезапустить Проводник (explorer.exe)? Откроется заново со сброшенным меню «Пуск».',
   'settings.adminHint': 'Совет: запустите Structura от имени администратора.',
+  'settings.updates': 'Обновления',
+  'settings.updatesHint':
+    'Structura проверяет новые версии в GitHub Releases. Установка происходит с цифровой подписью разработчика.',
+  'settings.autoCheckUpdates': 'Проверять обновления при запуске (не чаще раза в сутки)',
+  'settings.checkForUpdates': 'Проверить сейчас',
+  'settings.updatesUpToDate': 'Установлена последняя версия.',
+  'settings.updateAvailable': 'Доступна версия {version}',
+  'settings.lastCheck': 'Последняя проверка: {when}',
+  'settings.notCheckedYet': 'Проверка ещё не запускалась.',
+  'settings.updatesNotInBrowser':
+    'Авто-обновление работает только в нативном приложении.',
+  // Update dialog ---------------------------------------------------------
+  'updater.availableTitle': 'Доступно обновление {version}',
+  'updater.availableDesc':
+    'Скачивание подписанного установщика начнётся сразу после нажатия «Установить». Приложение перезапустится автоматически.',
+  'updater.errorTitle': 'Не удалось обновить',
+  'updater.errorDesc': 'Попробуйте ещё раз позже или скачайте версию с GitHub Releases вручную.',
+  'updater.readyTitle': 'Готово к перезапуску',
+  'updater.readyDesc': 'Перезапускаем Structura для применения обновления…',
+  'updater.installNow': 'Установить',
+  'updater.later': 'Позже',
+  'updater.downloading': 'Скачивание…',
+  'updater.downloadingHint': 'Скачано {percent}%',
+  'updater.restarting': 'Перезапуск…',
   'settings.help': 'Открыть справку',
 
   // help
@@ -208,6 +243,8 @@ const RU: Dict = {
   'hk.outdent': 'Отступ влево',
   'hk.newFile': 'Новый файл',
   'hk.newFolder': 'Новая папка',
+  'hk.togglePresets': 'Скрыть/показать панель пресетов',
+  'hk.toggleInspector': 'Скрыть/показать панель инспектора',
   'hk.help': 'Справка',
 
   // import
@@ -292,6 +329,12 @@ const RU: Dict = {
   'presets.noneFound': 'Ничего не найдено',
   'presets.edit': 'Редактировать',
   'presets.delete': 'Удалить',
+  'presets.duplicate': 'Дублировать',
+  'presets.copySuffix': 'копия',
+  'presets.kindAll': 'все',
+  'presets.kind.flatten': 'Свести',
+  'presets.kind.rename': 'Переименовать',
+  'presets.kind.dedup': 'Дубликаты',
 
   // inspector
   'inspector.selectedN': 'Выделено',
@@ -362,13 +405,39 @@ const RU: Dict = {
   // preset editor
   'presetEditor.titleEdit': 'Редактировать пресет',
   'presetEditor.titleNew': 'Новый пресет',
-  'presetEditor.description': 'Настройте стратегию сведения, лимит размеров и теги для быстрой фильтрации в библиотеке.',
+  'presetEditor.description':
+    'Настройте действие пресета и его параметры. Превью покажет первые операции, которые будут добавлены в песочницу.',
   'presetEditor.name': 'Имя',
   'presetEditor.desc': 'Описание',
   'presetEditor.tags': 'Теги (через запятую)',
   'presetEditor.maxSize': 'Пропускать файлы больше (МБ)',
   'presetEditor.cleanupEmpty': 'Удалять пустые папки после сведения',
   'presetEditor.save': 'Сохранить',
+  'presetEditor.kind.flatten': 'Свести',
+  'presetEditor.kind.rename': 'Переименовать',
+  'presetEditor.kind.dedup': 'Дубликаты',
+  'presetEditor.template': 'Шаблон имени',
+  'presetEditor.renameTarget': 'К чему применять',
+  'presetEditor.renameTarget.files': 'Файлы',
+  'presetEditor.renameTarget.dirs': 'Папки',
+  'presetEditor.renameTarget.both': 'И то и другое',
+  'presetEditor.renameScope': 'Область',
+  'presetEditor.renameScope.children': 'Прямые дети',
+  'presetEditor.renameScope.descendants': 'Всё поддерево',
+  'presetEditor.dedupMinSize': 'Минимальный размер файла (КБ)',
+  'presetEditor.dedupAction': 'Что делать с дубликатами',
+  'presetEditor.dedup.mark': 'Помечать к удалению (оставлять первый)',
+  'presetEditor.dedup.keepNewest': 'Оставлять самый свежий',
+  'presetEditor.dedup.keepOldest': 'Оставлять самый старый',
+  'presetEditor.dedupNote':
+    'Поиск дубликатов читает диск и работает по содержимому файлов — открывается отдельным диалогом при применении пресета.',
+  'presetEditor.preview': 'Превью эффекта',
+  'presetEditor.previewSummary': 'Будет операций: {n}',
+  'presetEditor.previewEmpty': 'Для текущего дерева операций нет.',
+  'presetEditor.previewNoRoot': 'Сначала отсканируйте папку, чтобы увидеть превью.',
+  'presetEditor.previewMore': '… и ещё {n}',
+  'presetEditor.dedupPreviewNote':
+    'Превью недоступно — пресет открывает диалог поиска дубликатов при применении.',
 
   // multi create
   'multiCreate.header': 'Массовое создание',
@@ -385,6 +454,10 @@ const RU: Dict = {
   'status.renamed': 'переименовано',
   'status.removed': 'удалено',
   'status.applyHint': 'Ctrl+S — применить',
+  'status.diskChangedToast': 'Дерево обновлено: изменения на диске синхронизированы',
+  'status.diskChangedWithDirty':
+    'Дерево изменилось на диске извне. Применить или отменить локальные правки, затем F5',
+  'status.dismissNotification': 'Скрыть уведомление',
 
   // theme picker
   'theme.picker': 'Тема оформления',
@@ -399,6 +472,9 @@ const RU: Dict = {
   'tree.ariaLabel': 'Дерево каталогов',
   'tree.expand': 'Развернуть',
   'tree.collapse': 'Свернуть',
+  'tree.countTooltip': 'Файлов: {files}, папок: {dirs}',
+  'tree.countFiles': 'файлов',
+  'tree.countDirs': 'папок',
 
   // widget
   'widget.dropHere': 'Перетащи сюда',
@@ -447,6 +523,8 @@ const EN: Dict = {
   'titlebar.help': 'Help & instructions',
   'titlebar.pathPlaceholder': 'Folder path (Enter to open)',
   'titlebar.applyButton': 'Apply',
+  'titlebar.toggleLeft': 'Hide/show left panel',
+  'titlebar.toggleRight': 'Hide/show right panel',
 
   // actionbar
   'actionbar.expected': 'Expected action',
@@ -478,7 +556,9 @@ const EN: Dict = {
   'apply.errors': 'errors',
   'apply.skipped': 'skipped',
   'apply.applying': 'Applying…',
-  'apply.groupByKind': 'Group by kind',
+  'apply.groupByKind': 'By kind',
+  'apply.groupByDir': 'By folder',
+  'apply.searchPlaceholder': 'Search by path…',
   'apply.showAll': 'All operations',
   'apply.from': 'from',
   'apply.to': 'to',
@@ -550,7 +630,37 @@ const EN: Dict = {
   'settings.shellNotInstalled': 'not installed',
   'settings.shellPlatform': 'Platform',
   'settings.shellOther': 'Support for other OSes is planned.',
+  'settings.shellTipWin11':
+    'On Windows 11 the "Open in Structura" entry can be hidden under "Show more options" (or Shift+Right-click). If you don\'t see it after install — click "Restart Explorer".',
+  'settings.restartExplorer': 'Restart Explorer',
+  'settings.restartExplorerHint':
+    'Reloads explorer.exe — needed so Windows picks up the new registry entries.',
+  'settings.restartExplorerConfirm':
+    'Restart Explorer (explorer.exe)? Your taskbar/Start menu state will reset.',
   'settings.adminHint': 'Tip: run Structura as administrator.',
+  'settings.updates': 'Updates',
+  'settings.updatesHint':
+    'Structura checks GitHub Releases for new versions. Installers are verified against the developer’s signing key.',
+  'settings.autoCheckUpdates': 'Check on launch (at most once per 24h)',
+  'settings.checkForUpdates': 'Check now',
+  'settings.updatesUpToDate': 'You are on the latest version.',
+  'settings.updateAvailable': 'Version {version} is available',
+  'settings.lastCheck': 'Last check: {when}',
+  'settings.notCheckedYet': 'No check has run yet.',
+  'settings.updatesNotInBrowser': 'Auto-update is only available in the desktop app.',
+  // Update dialog ---------------------------------------------------------
+  'updater.availableTitle': 'Update available: {version}',
+  'updater.availableDesc':
+    'The signed installer will start downloading as soon as you press Install. The app will relaunch automatically when ready.',
+  'updater.errorTitle': 'Update failed',
+  'updater.errorDesc': 'Try again later, or download the latest installer from GitHub Releases manually.',
+  'updater.readyTitle': 'Ready to relaunch',
+  'updater.readyDesc': 'Restarting Structura to apply the update…',
+  'updater.installNow': 'Install',
+  'updater.later': 'Later',
+  'updater.downloading': 'Downloading…',
+  'updater.downloadingHint': 'Downloaded {percent}%',
+  'updater.restarting': 'Restarting…',
   'settings.help': 'Open help',
 
   // help
@@ -606,6 +716,8 @@ const EN: Dict = {
   'hk.outdent': 'Outdent',
   'hk.newFile': 'New file',
   'hk.newFolder': 'New folder',
+  'hk.togglePresets': 'Toggle presets panel',
+  'hk.toggleInspector': 'Toggle inspector panel',
   'hk.help': 'Help',
 
   // import
@@ -690,6 +802,12 @@ const EN: Dict = {
   'presets.noneFound': 'Nothing found',
   'presets.edit': 'Edit',
   'presets.delete': 'Delete',
+  'presets.duplicate': 'Duplicate',
+  'presets.copySuffix': 'copy',
+  'presets.kindAll': 'all',
+  'presets.kind.flatten': 'Flatten',
+  'presets.kind.rename': 'Rename',
+  'presets.kind.dedup': 'Dedup',
 
   // inspector
   'inspector.selectedN': 'Selected',
@@ -760,13 +878,39 @@ const EN: Dict = {
   // preset editor
   'presetEditor.titleEdit': 'Edit preset',
   'presetEditor.titleNew': 'New preset',
-  'presetEditor.description': 'Configure flatten strategy, size limit, and tags for quick filtering in the library.',
+  'presetEditor.description':
+    'Configure the preset action and its parameters. Preview shows the first operations that will land in the sandbox.',
   'presetEditor.name': 'Name',
   'presetEditor.desc': 'Description',
   'presetEditor.tags': 'Tags (comma-separated)',
   'presetEditor.maxSize': 'Skip files larger than (MB)',
   'presetEditor.cleanupEmpty': 'Remove empty directories after flatten',
   'presetEditor.save': 'Save',
+  'presetEditor.kind.flatten': 'Flatten',
+  'presetEditor.kind.rename': 'Rename',
+  'presetEditor.kind.dedup': 'Dedup',
+  'presetEditor.template': 'Name template',
+  'presetEditor.renameTarget': 'What to rename',
+  'presetEditor.renameTarget.files': 'Files',
+  'presetEditor.renameTarget.dirs': 'Folders',
+  'presetEditor.renameTarget.both': 'Both',
+  'presetEditor.renameScope': 'Scope',
+  'presetEditor.renameScope.children': 'Direct children',
+  'presetEditor.renameScope.descendants': 'Whole subtree',
+  'presetEditor.dedupMinSize': 'Minimum file size (KB)',
+  'presetEditor.dedupAction': 'What to do with duplicates',
+  'presetEditor.dedup.mark': 'Soft-delete (keep first)',
+  'presetEditor.dedup.keepNewest': 'Keep newest',
+  'presetEditor.dedup.keepOldest': 'Keep oldest',
+  'presetEditor.dedupNote':
+    'Duplicate detection reads the disk and compares file contents — it opens as a separate dialog when the preset is applied.',
+  'presetEditor.preview': 'Preview',
+  'presetEditor.previewSummary': 'Operations: {n}',
+  'presetEditor.previewEmpty': 'No operations for the current tree.',
+  'presetEditor.previewNoRoot': 'Scan a folder first to see a preview.',
+  'presetEditor.previewMore': '… and {n} more',
+  'presetEditor.dedupPreviewNote':
+    'No preview — this preset opens the duplicate-search dialog when applied.',
 
   // multi create
   'multiCreate.header': 'Mass create',
@@ -783,6 +927,10 @@ const EN: Dict = {
   'status.renamed': 'renamed',
   'status.removed': 'removed',
   'status.applyHint': 'Ctrl+S to apply',
+  'status.diskChangedToast': 'Tree refreshed: external disk changes merged',
+  'status.diskChangedWithDirty':
+    'Tree changed on disk while you have pending edits. Apply or undo your changes, then press F5',
+  'status.dismissNotification': 'Dismiss notification',
 
   // theme picker
   'theme.picker': 'Theme',
@@ -797,6 +945,9 @@ const EN: Dict = {
   'tree.ariaLabel': 'Directory tree',
   'tree.expand': 'Expand',
   'tree.collapse': 'Collapse',
+  'tree.countTooltip': 'Files: {files}, folders: {dirs}',
+  'tree.countFiles': 'files',
+  'tree.countDirs': 'folders',
 
   // widget
   'widget.dropHere': 'Drop here',

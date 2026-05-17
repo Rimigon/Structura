@@ -213,5 +213,9 @@ export async function uninstallShellIntegration(): Promise<void> {
   return invoke<void>('uninstall_shell_integration');
 }
 
+export async function restartExplorer(): Promise<void> {
+  return invoke<void>('restart_explorer');
+}
+
 export const isTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;

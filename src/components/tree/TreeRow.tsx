@@ -1,13 +1,15 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ChevronDown, ChevronRight, File as FileIcon, Folder, GripVertical } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import type { DirNode, NodeId, TreeNode } from '@/types';
 import type { SelectMods } from '@/stores/selectionStore';
 import { cn } from '@/lib/cn';
 import { MonoText } from '@/components/common/MonoText';
 import { Input } from '@/components/ui/input';
-import { useSelectionStore } from '@/stores';
+import { useSelectionStore, useTreeStore } from '@/stores';
 import { useT } from '@/lib/i18n';
+import { countDirectChildren } from '@/core/tree/traverse';
 import { DiffBadge } from './DiffBadge';
 
 interface Props {
@@ -52,6 +54,10 @@ function TreeRowInner({
   const expanded = isDir ? (node as DirNode).expanded : false;
   const diffClass = node.dirty ? DIFF_CLASS[node.dirty] : '';
   const t = useT();
+
+  const counts = useTreeStore(
+    useShallow(s => (isDir ? countDirectChildren(s, node.id) : null)),
+  );
 
   const [draft, setDraft] = useState(node.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -188,6 +194,18 @@ function TreeRowInner({
           {node.name}
           {isDir ? '/' : ''}
         </MonoText>
+      )}
+      {isDir && !editing && counts && (counts.files > 0 || counts.dirs > 0) && (
+        <span
+          className="text-muted-foreground/60 text-[10px] tabular-nums flex items-center gap-1 mr-1"
+          title={t('tree.countTooltip', { files: counts.files, dirs: counts.dirs })}
+          aria-hidden="true"
+        >
+          <FileIcon className="h-3 w-3" />
+          {counts.files}
+          <Folder className="h-3 w-3" />
+          {counts.dirs}
+        </span>
       )}
       <DiffBadge dirty={node.dirty} />
     </div>

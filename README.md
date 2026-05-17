@@ -112,6 +112,35 @@ git push origin v0.3.0
 
 После ~15–20 минут в `Actions` будет три зелёных билда, а в `Releases` — draft с артефактами. Допишите changelog и опубликуйте.
 
+### Авто-обновление приложения (`tauri-plugin-updater`)
+
+Structura умеет проверять обновления в GitHub Releases и устанавливать подписанный установщик одним кликом. Чтобы первый релиз собрался корректно, мейнтейнеру нужно один раз сгенерировать ключевую пару и положить её в секреты репозитория.
+
+1. **Сгенерируйте ed25519-пару**:
+   ```sh
+   pnpm tauri signer generate -w %USERPROFILE%\.tauri\structura-updater.key
+   # Linux/macOS:
+   # pnpm tauri signer generate -w ~/.tauri/structura-updater.key
+   ```
+   Команда спросит пароль и создаст:
+   - `structura-updater.key` — приватный (НЕ коммитить!)
+   - `structura-updater.key.pub` — публичный
+
+2. **Подставьте публичный ключ** в `src-tauri/tauri.conf.json` → `plugins.updater.pubkey` вместо `REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY` (одна base64-строка из `.pub` файла).
+
+3. **Положите в GitHub Secrets** (`Settings → Secrets and variables → Actions → New repository secret`):
+   - `TAURI_SIGNING_PRIVATE_KEY` — содержимое `structura-updater.key`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — пароль, который вы задали на шаге 1
+
+4. **Опубликуйте релиз** (draft надо именно *publish*, не оставлять draft — иначе `releases/latest/download/...` отдаёт 404). `tauri-action` сам добавит к артефактам файл `latest.json` с подписями.
+
+Endpoint, который опрашивает приложение, прописан в `tauri.conf.json`:
+```
+https://github.com/Rimigon/Structura/releases/latest/download/latest.json
+```
+
+На стороне приложения проверка обновлений включена по умолчанию (Settings → Updates) и срабатывает не чаще раза в 24 часа. Пользователь может в любой момент отключить автопроверку или нажать «Проверить сейчас».
+
 ## Требования и установка с нуля
 
 ### Быстрый обзор зависимостей

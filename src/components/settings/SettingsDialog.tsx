@@ -4,8 +4,11 @@ import {
   Check,
   Cog,
   Globe,
+  Info,
   Keyboard,
   Loader2,
+  RefreshCw,
+  RocketIcon,
   RotateCcw,
   Terminal,
   X,
@@ -30,9 +33,11 @@ import {
 } from '@/stores/uiStore';
 import { LOCALES, useT } from '@/lib/i18n';
 import type { Locale } from '@/lib/i18n';
+import { useUpdaterContext } from '@/hooks/useUpdater';
 import {
   installShellIntegration,
   isTauri,
+  restartExplorer,
   shellIntegrationStatus,
   uninstallShellIntegration,
   type ShellIntegrationStatus,
@@ -47,6 +52,10 @@ export function SettingsDialog() {
   const setHotkey = useUIStore(s => s.setHotkey);
   const resetHotkeys = useUIStore(s => s.resetHotkeys);
   const setHelpDialogOpen = useUIStore(s => s.setHelpDialogOpen);
+  const autoCheckUpdates = useUIStore(s => s.autoCheckUpdates);
+  const setAutoCheckUpdates = useUIStore(s => s.setAutoCheckUpdates);
+  const lastUpdateCheckAt = useUIStore(s => s.lastUpdateCheckAt);
+  const updater = useUpdaterContext();
   const t = useT();
   const [status, setStatus] = useState<ShellIntegrationStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +95,19 @@ export function SettingsDialog() {
     try {
       await uninstallShellIntegration();
       await reload();
+    } catch (e) {
+      setErr((e as Error).message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRestartExplorer = async () => {
+    if (!confirm(t('settings.restartExplorerConfirm'))) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await restartExplorer();
     } catch (e) {
       setErr((e as Error).message ?? String(e));
     } finally {
@@ -180,29 +202,47 @@ export function SettingsDialog() {
                 {status?.note ?? t('common.loading')}
               </p>
               {status?.supported && (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleInstall}
-                    disabled={busy || status.installed}
-                  >
-                    {busy ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Check className="h-3.5 w-3.5" />
-                    )}
-                    {t('common.install')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleUninstall}
-                    disabled={busy || !status.installed}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    {t('common.uninstall')}
-                  </Button>
-                </div>
+                <>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      onClick={handleInstall}
+                      disabled={busy || status.installed}
+                    >
+                      {busy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      {t('common.install')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleUninstall}
+                      disabled={busy || !status.installed}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {t('common.uninstall')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRestartExplorer}
+                      disabled={busy}
+                      title={t('settings.restartExplorerHint')}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      {t('settings.restartExplorer')}
+                    </Button>
+                  </div>
+                  {status.installed && (
+                    <div className="mt-2 rounded-md border border-primary/40 bg-primary/5 p-2 text-[11px] text-foreground/80 flex gap-1.5">
+                      <Info className="h-3 w-3 shrink-0 mt-0.5 text-primary" />
+                      <span>{t('settings.shellTipWin11')}</span>
+                    </div>
+                  )}
+                </>
               )}
               {status && !status.supported && (
                 <p className="text-[11px] italic text-muted-foreground">
@@ -217,6 +257,60 @@ export function SettingsDialog() {
                     <div className="mt-1 text-[11px]">{t('settings.adminHint')}</div>
                   )}
                 </div>
+              )}
+            </Section>
+
+            {/* Updates ----------------------------------------------------- */}
+            <Section icon={RocketIcon} title={t('settings.updates')}>
+              <p className="text-xs text-muted-foreground mb-2">
+                {t('settings.updatesHint')}
+              </p>
+              <label className="flex items-center gap-2 text-xs mb-2">
+                <input
+                  type="checkbox"
+                  checked={autoCheckUpdates}
+                  onChange={e => setAutoCheckUpdates(e.target.checked)}
+                />
+                {t('settings.autoCheckUpdates')}
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updater.checkNow()}
+                  disabled={
+                    !isTauri() ||
+                    updater.status === 'checking' ||
+                    updater.status === 'downloading'
+                  }
+                >
+                  {updater.status === 'checking' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  {t('settings.checkForUpdates')}
+                </Button>
+                <span className="text-[11px] text-muted-foreground font-mono-tight">
+                  {updater.status === 'unavailable'
+                    ? t('settings.updatesUpToDate')
+                    : updater.status === 'available'
+                      ? t('settings.updateAvailable', {
+                          version: updater.info?.version ?? '',
+                        })
+                      : updater.status === 'error'
+                        ? `${t('common.error')}: ${updater.error ?? ''}`
+                        : lastUpdateCheckAt > 0
+                          ? t('settings.lastCheck', {
+                              when: new Date(lastUpdateCheckAt).toLocaleString(),
+                            })
+                          : t('settings.notCheckedYet')}
+                </span>
+              </div>
+              {!isTauri() && (
+                <p className="text-[11px] italic text-muted-foreground mt-2">
+                  {t('settings.updatesNotInBrowser')}
+                </p>
               )}
             </Section>
 

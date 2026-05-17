@@ -425,3 +425,45 @@ function wouldCreateCycle(state: TreeStore, id: NodeId, newParentId: NodeId): bo
 }
 
 export const useTreeHistory = () => useTreeStore.temporal;
+
+// Snapshot/restore directory `expanded` flags around undo/redo so that
+// collapsing/expanding folders is never reverted as part of structural undo —
+// users complained that Ctrl+Z folded the whole tree. We treat `expanded` as
+// pure UI state that lives "alongside" the undoable graph.
+export function snapshotExpanded(
+  state: TreeState,
+): Record<NodeId, boolean | undefined> {
+  const result: Record<NodeId, boolean | undefined> = {};
+  for (const id in state.nodes) {
+    const n = state.nodes[id];
+    if (n && n.kind === 'dir') result[id] = n.expanded;
+  }
+  return result;
+}
+
+export function restoreExpanded(snap: Record<NodeId, boolean | undefined>): void {
+  useTreeStore.setState(s => {
+    const nodes: typeof s.nodes = { ...s.nodes };
+    let changed = false;
+    for (const id in snap) {
+      const node = nodes[id];
+      if (node && node.kind === 'dir' && node.expanded !== snap[id]) {
+        nodes[id] = { ...node, expanded: snap[id] };
+        changed = true;
+      }
+    }
+    return changed ? { ...s, nodes } : s;
+  });
+}
+
+export function undoTree(steps?: number): void {
+  const snap = snapshotExpanded(useTreeStore.getState());
+  useTreeStore.temporal.getState().undo(steps);
+  restoreExpanded(snap);
+}
+
+export function redoTree(steps?: number): void {
+  const snap = snapshotExpanded(useTreeStore.getState());
+  useTreeStore.temporal.getState().redo(steps);
+  restoreExpanded(snap);
+}

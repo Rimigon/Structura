@@ -116,3 +116,24 @@ fn windows_is_installed() -> std::io::Result<bool> {
         .open_subkey(r"Software\Classes\Directory\shell\Structura\command")
         .is_ok())
 }
+
+#[tauri::command]
+pub async fn restart_explorer() -> AppResult<()> {
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        // taskkill returns non-zero if explorer isn't running — that's fine,
+        // we still want to start it.
+        let _ = Command::new("taskkill")
+            .args(["/F", "/IM", "explorer.exe"])
+            .status();
+        Command::new("explorer.exe")
+            .spawn()
+            .map_err(|e| AppError::Io(format!("relaunch explorer: {e}")))?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        Err(AppError::Io("restart_explorer is Windows-only".into()))
+    }
+}

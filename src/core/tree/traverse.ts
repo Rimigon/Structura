@@ -72,3 +72,32 @@ export function findByPath(state: TreeState, path: string): TreeNode | null {
   }
   return null;
 }
+
+export interface ChildCounts {
+  files: number;
+  dirs: number;
+}
+
+export function countDirectChildren(state: TreeState, id: NodeId): ChildCounts {
+  const node = state.nodes[id];
+  if (!node || node.kind !== 'dir') return { files: 0, dirs: 0 };
+  let files = 0;
+  let dirs = 0;
+  for (const cid of node.childIds) {
+    const c = state.nodes[cid];
+    if (!c || c.dirty === 'deleted') continue;
+    if (c.kind === 'file') files++;
+    else dirs++;
+  }
+  return { files, dirs };
+}
+
+/** True if any node has a pending dirty flag other than `deleted`. Used to decide
+ * whether external FS events can be auto-merged without trashing user edits. */
+export function hasPendingChanges(state: TreeState): boolean {
+  for (const id in state.nodes) {
+    const d = state.nodes[id]?.dirty;
+    if (d && d !== 'deleted') return true;
+  }
+  return false;
+}

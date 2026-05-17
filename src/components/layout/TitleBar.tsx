@@ -7,6 +7,8 @@ import {
   FileSearch,
   FolderOpen,
   History,
+  PanelLeft,
+  PanelRight,
   PictureInPicture,
   Save,
   Undo2,
@@ -16,8 +18,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/cn';
 import { openFloatingWidget, pickDirectory } from '@/lib/tauri';
-import { useTreeStore, useUIStore, useTreeHistory } from '@/stores';
+import { useTreeStore, useUIStore, undoTree, redoTree } from '@/stores';
 import { useT } from '@/lib/i18n';
 import { ThemePicker } from './ThemePicker';
 
@@ -40,10 +43,13 @@ export function TitleBar() {
   const setWatchersDialogOpen = useUIStore(s => s.setWatchersDialogOpen);
   const setSettingsDialogOpen = useUIStore(s => s.setSettingsDialogOpen);
   const setHelpDialogOpen = useUIStore(s => s.setHelpDialogOpen);
+  const leftPanelVisible = useUIStore(s => s.leftPanelVisible);
+  const rightPanelVisible = useUIStore(s => s.rightPanelVisible);
+  const toggleLeftPanel = useUIStore(s => s.toggleLeftPanel);
+  const toggleRightPanel = useUIStore(s => s.toggleRightPanel);
   const dirtyCount = useTreeStore(s =>
     Object.values(s.nodes).filter(n => n.dirty).length,
   );
-  const history = useTreeHistory();
   const t = useT();
 
   const [pathInput, setPathInput] = useState(rootFsPath ?? '');
@@ -111,7 +117,38 @@ export function TitleBar() {
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => history.getState().undo()}
+        onClick={toggleLeftPanel}
+        aria-label={t('titlebar.toggleLeft')}
+        title={t('titlebar.toggleLeft')}
+        aria-pressed={!leftPanelVisible}
+      >
+        <PanelLeft
+          className={cn(
+            'h-4 w-4',
+            !leftPanelVisible && 'text-muted-foreground/50',
+          )}
+        />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggleRightPanel}
+        aria-label={t('titlebar.toggleRight')}
+        title={t('titlebar.toggleRight')}
+        aria-pressed={!rightPanelVisible}
+      >
+        <PanelRight
+          className={cn(
+            'h-4 w-4',
+            !rightPanelVisible && 'text-muted-foreground/50',
+          )}
+        />
+      </Button>
+      <Separator orientation="vertical" className="h-6 mx-1" />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => undoTree()}
         aria-label={t('titlebar.undo')}
         title={t('titlebar.undo')}
       >
@@ -120,7 +157,7 @@ export function TitleBar() {
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => history.getState().redo()}
+        onClick={() => redoTree()}
         aria-label={t('titlebar.redo')}
         title={t('titlebar.redo')}
       >
