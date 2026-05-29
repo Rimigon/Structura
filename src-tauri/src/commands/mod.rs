@@ -8,6 +8,7 @@ pub mod reveal;
 pub mod scan;
 pub mod search;
 pub mod shell_integration;
+pub mod thumbnail;
 pub mod watcher;
 pub mod widget;
 
@@ -21,5 +22,6 @@ pub use reveal::*;
 pub use scan::*;
 pub use search::*;
 pub use shell_integration::*;
+pub use thumbnail::*;
 pub use watcher::*;
 pub use widget::*;

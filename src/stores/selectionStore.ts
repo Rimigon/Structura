@@ -20,6 +20,7 @@ interface SelectionState {
   lastAnchorId: NodeId | null;
   clipboard: Clipboard | null;
   select(id: NodeId, mods: SelectMods, orderedIds: NodeId[]): void;
+  selectAll(ids: NodeId[]): void;
   focus(id: NodeId | null): void;
   startEditing(id: NodeId | null): void;
   clearMulti(): void;
@@ -54,6 +55,16 @@ export const useSelectionStore = create<SelectionState>(set => ({
         return { multiSelect: next, focusedId: id, lastAnchorId: id };
       }
       return { multiSelect: new Set(), focusedId: id, lastAnchorId: id };
+    }),
+
+  selectAll: ids =>
+    set(() => {
+      if (ids.length === 0) return {};
+      return {
+        multiSelect: new Set(ids),
+        focusedId: ids[0]!,
+        lastAnchorId: ids[0]!,
+      };
     }),
 
   focus: id => set({ focusedId: id, lastAnchorId: id }),

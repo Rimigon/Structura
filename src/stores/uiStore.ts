@@ -48,12 +48,42 @@ export const THEMES: { id: ThemeId; label: string; dark: boolean }[] = [
 ];
 
 // Hotkey configuration -----------------------------------------------------
+export type TreeViewMode =
+  | 'tree' // hierarchical
+  | 'list' // compact multi-column names (Windows "List")
+  | 'tiles' // medium icon + name + meta (Windows "Tiles")
+  | 'grid' // icon/thumbnail cards (Finder "Icons", Explorer "Large icons")
+  | 'gallery' // big preview of focused item + thumbnail strip (Finder "Gallery")
+  | 'details' // sortable table (Explorer "Details")
+  | 'columns'; // Miller columns (Finder "Columns")
+
+/** Modes where the preview/icon zoom slider applies. */
+export const ZOOMABLE_VIEW_MODES: TreeViewMode[] = ['tiles', 'grid', 'gallery', 'details'];
+
+/** Icon/preview zoom bounds for grid + details views. */
+export const GRID_SIZE_MIN = 56;
+export const GRID_SIZE_MAX = 280;
+export const GRID_SIZE_STEP = 24;
+export const GRID_SIZE_DEFAULT = 112;
+
+export function clampGridSize(n: number): number {
+  return Math.max(GRID_SIZE_MIN, Math.min(GRID_SIZE_MAX, Math.round(n)));
+}
+
+export type DetailsSortKey = 'name' | 'type' | 'size' | 'modified';
+export interface DetailsSort {
+  key: DetailsSortKey;
+  dir: 'asc' | 'desc';
+}
+export const DEFAULT_DETAILS_SORT: DetailsSort = { key: 'name', dir: 'asc' };
+
 export type HotkeyAction =
   | 'undo'
   | 'redo'
   | 'apply'
   | 'openFolder'
   | 'focusSearch'
+  | 'selectAll'
   | 'copy'
   | 'cut'
   | 'paste'
@@ -83,6 +113,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   'apply',
   'openFolder',
   'focusSearch',
+  'selectAll',
   'copy',
   'cut',
   'paste',
@@ -105,6 +136,7 @@ export const DEFAULT_HOTKEYS: Record<HotkeyAction, HotkeySpec> = {
   apply: { primary: 'KeyS', ctrl: true },
   openFolder: { primary: 'KeyO', ctrl: true },
   focusSearch: { primary: 'KeyF', ctrl: true },
+  selectAll: { primary: 'KeyA', ctrl: true },
   copy: { primary: 'KeyC', ctrl: true },
   cut: { primary: 'KeyX', ctrl: true },
   paste: { primary: 'KeyV', ctrl: true },
@@ -135,6 +167,11 @@ interface UIState {
   rightPanelVisible: boolean;
   theme: ThemeId;
   locale: Locale;
+  treeViewMode: TreeViewMode;
+  /** Preview/icon size (px) for grid + details views. */
+  gridSize: number;
+  /** Column sort for the details view. */
+  detailsSort: DetailsSort;
   hotkeys: Record<HotkeyAction, HotkeySpec>;
   importDialogOpen: boolean;
   exportDialogOpen: boolean;
@@ -158,6 +195,10 @@ interface UIState {
   toggleRightPanel(): void;
   setTheme(theme: ThemeId): void;
   setLocale(locale: Locale): void;
+  setTreeViewMode(mode: TreeViewMode): void;
+  setGridSize(size: number): void;
+  /** Toggle/raise the details sort key (asc → desc → asc on repeat). */
+  toggleDetailsSort(key: DetailsSortKey): void;
   setHotkey(action: HotkeyAction, spec: HotkeySpec): void;
   resetHotkeys(): void;
   setImportDialogOpen(open: boolean): void;
@@ -187,6 +228,9 @@ export const useUIStore = create<UIState>()(
       rightPanelVisible: true,
       theme: 'structura-dark',
       locale: 'ru',
+      treeViewMode: 'tree',
+      gridSize: GRID_SIZE_DEFAULT,
+      detailsSort: { ...DEFAULT_DETAILS_SORT },
       hotkeys: { ...DEFAULT_HOTKEYS },
       importDialogOpen: false,
       exportDialogOpen: false,
@@ -210,6 +254,15 @@ export const useUIStore = create<UIState>()(
         set(s => ({ rightPanelVisible: !s.rightPanelVisible })),
       setTheme: theme => set({ theme }),
       setLocale: locale => set({ locale }),
+      setTreeViewMode: mode => set({ treeViewMode: mode }),
+      setGridSize: size => set({ gridSize: clampGridSize(size) }),
+      toggleDetailsSort: key =>
+        set(state => ({
+          detailsSort:
+            state.detailsSort.key === key
+              ? { key, dir: state.detailsSort.dir === 'asc' ? 'desc' : 'asc' }
+              : { key, dir: 'asc' },
+        })),
       setHotkey: (action, spec) =>
         set(state => ({ hotkeys: { ...state.hotkeys, [action]: spec } })),
       resetHotkeys: () => set({ hotkeys: { ...DEFAULT_HOTKEYS } }),
@@ -239,7 +292,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'structura-ui',
-      version: 5,
+      version: 8,
       partialize: state => ({
         leftPanelSize: state.leftPanelSize,
         rightPanelSize: state.rightPanelSize,
@@ -247,6 +300,9 @@ export const useUIStore = create<UIState>()(
         rightPanelVisible: state.rightPanelVisible,
         theme: state.theme,
         locale: state.locale,
+        treeViewMode: state.treeViewMode,
+        gridSize: state.gridSize,
+        detailsSort: state.detailsSort,
         hotkeys: state.hotkeys,
         autoCheckUpdates: state.autoCheckUpdates,
         lastUpdateCheckAt: state.lastUpdateCheckAt,
@@ -278,6 +334,31 @@ export const useUIStore = create<UIState>()(
             ...next,
             autoCheckUpdates: next.autoCheckUpdates ?? true,
             lastUpdateCheckAt: next.lastUpdateCheckAt ?? 0,
+          };
+        }
+        // v5 → v6: tree view modes + selectAll hotkey
+        if (version < 6) {
+          next = {
+            ...next,
+            treeViewMode: next.treeViewMode ?? 'tree',
+            hotkeys: {
+              ...DEFAULT_HOTKEYS,
+              ...(next.hotkeys ?? {}),
+            },
+          };
+        }
+        // v6 → v7: grid/details preview zoom
+        if (version < 7) {
+          next = {
+            ...next,
+            gridSize: next.gridSize ?? GRID_SIZE_DEFAULT,
+          };
+        }
+        // v7 → v8: more view modes + details column sort
+        if (version < 8) {
+          next = {
+            ...next,
+            detailsSort: next.detailsSort ?? { ...DEFAULT_DETAILS_SORT },
           };
         }
         return next as UIState;

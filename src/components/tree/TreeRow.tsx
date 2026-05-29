@@ -11,6 +11,7 @@ import { useSelectionStore, useTreeStore } from '@/stores';
 import { useT } from '@/lib/i18n';
 import { countDirectChildren } from '@/core/tree/traverse';
 import { DiffBadge } from './DiffBadge';
+import { FileThumbnail } from './FileThumbnail';
 
 interface Props {
   node: TreeNode;
@@ -167,7 +168,12 @@ function TreeRowInner({
       {isDir ? (
         <Folder className="h-3.5 w-3.5 text-primary" />
       ) : (
-        <FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
+        <FileThumbnail
+          node={node}
+          size={48}
+          className="h-4 w-4 shrink-0 rounded-[2px] object-cover"
+          fallback={<FileIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+        />
       )}
       {editing ? (
         <Input

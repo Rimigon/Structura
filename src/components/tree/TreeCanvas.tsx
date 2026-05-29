@@ -11,18 +11,41 @@ import {
 import type { DirNode, NodeId, TreeNode } from '@/types';
 import type { SelectMods } from '@/stores/selectionStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useSelectionStore, useTreeStore } from '@/stores';
+import { useSelectionStore, useTreeStore, useUIStore } from '@/stores';
+import { GRID_SIZE_STEP, type DetailsSort } from '@/stores/uiStore';
 import { findMatchingIds } from '@/core/search/filterTree';
 import { isTauri, searchContent } from '@/lib/tauri';
 import { useT } from '@/lib/i18n';
 import { TreeRow } from './TreeRow';
+import { TreeGridItem } from './TreeGridItem';
+import { TreeListItem } from './TreeListItem';
+import { TreeTileItem } from './TreeTileItem';
+import { GalleryView } from './GalleryView';
+import { ColumnsView } from './ColumnsView';
+import { TreeDetailsRow, DETAILS_COLS } from './TreeDetailsRow';
 import { SearchBar } from './SearchBar';
 import { TreeContextMenu, type ContextMenuState } from './TreeContextMenu';
-import { FolderOpen, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FolderOpen, Loader2 } from 'lucide-react';
 
 interface FlatRow {
   node: TreeNode;
   depth: number;
+}
+
+type NodeCmp = (a: TreeNode, b: TreeNode) => number;
+
+function sortedChildIds(
+  nodes: Record<NodeId, TreeNode>,
+  childIds: NodeId[],
+  cmp: NodeCmp | null,
+): NodeId[] {
+  if (!cmp) return childIds;
+  return [...childIds].sort((x, y) => {
+    const a = nodes[x];
+    const b = nodes[y];
+    if (!a || !b) return 0;
+    return cmp(a, b);
+  });
 }
 
 function flatten(
@@ -30,13 +53,14 @@ function flatten(
   id: NodeId,
   depth: number,
   out: FlatRow[],
+  cmp: NodeCmp | null,
 ): void {
   const node = nodes[id];
   if (!node) return;
   out.push({ node, depth });
   if (node.kind === 'dir' && (node as DirNode).expanded) {
-    for (const cid of (node as DirNode).childIds) {
-      flatten(nodes, cid, depth + 1, out);
+    for (const cid of sortedChildIds(nodes, (node as DirNode).childIds, cmp)) {
+      flatten(nodes, cid, depth + 1, out, cmp);
     }
   }
 }
@@ -47,15 +71,54 @@ function flattenFiltered(
   depth: number,
   visible: Set<NodeId>,
   out: FlatRow[],
+  cmp: NodeCmp | null,
 ): void {
   const node = nodes[id];
   if (!node || !visible.has(id)) return;
   out.push({ node, depth });
   if (node.kind === 'dir') {
-    for (const cid of (node as DirNode).childIds) {
-      flattenFiltered(nodes, cid, depth + 1, visible, out);
+    for (const cid of sortedChildIds(nodes, (node as DirNode).childIds, cmp)) {
+      flattenFiltered(nodes, cid, depth + 1, visible, out, cmp);
     }
   }
+}
+
+const COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function buildComparator(sort: DetailsSort): NodeCmp {
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  return (a, b) => {
+    // Folders always group before files, regardless of sort direction.
+    const aDir = a.kind === 'dir';
+    const bDir = b.kind === 'dir';
+    if (aDir !== bDir) return aDir ? -1 : 1;
+    let cmp = 0;
+    switch (sort.key) {
+      case 'type': {
+        const ax = a.kind === 'file' ? a.ext : '';
+        const bx = b.kind === 'file' ? b.ext : '';
+        cmp = COLLATOR.compare(ax, bx);
+        break;
+      }
+      case 'size': {
+        const as = a.kind === 'file' ? a.size : 0;
+        const bs = b.kind === 'file' ? b.size : 0;
+        cmp = as - bs;
+        break;
+      }
+      case 'modified': {
+        const am = a.kind === 'file' ? a.modified : 0;
+        const bm = b.kind === 'file' ? b.modified : 0;
+        cmp = am - bm;
+        break;
+      }
+      case 'name':
+      default:
+        cmp = 0;
+    }
+    if (cmp === 0) cmp = COLLATOR.compare(a.name, b.name);
+    return cmp * sign;
+  };
 }
 
 export function TreeCanvas() {
@@ -66,6 +129,12 @@ export function TreeCanvas() {
   const focusedId = useSelectionStore(s => s.focusedId);
   const editingId = useSelectionStore(s => s.editingId);
   const multiSelect = useSelectionStore(s => s.multiSelect);
+  const viewMode = useUIStore(s => s.treeViewMode);
+  const setViewMode = useUIStore(s => s.setTreeViewMode);
+  const gridSize = useUIStore(s => s.gridSize);
+  const setGridSize = useUIStore(s => s.setGridSize);
+  const detailsSort = useUIStore(s => s.detailsSort);
+  const toggleDetailsSort = useUIStore(s => s.toggleDetailsSort);
   const t = useT();
 
   const [query, setQuery] = useState('');
@@ -165,16 +234,48 @@ export function TreeCanvas() {
     return out;
   }, [filterMode, matchSet, nodes]);
 
+  // The details view sorts siblings by the active column; every other mode keeps
+  // the on-disk (childIds) order.
+  const sortCmp = useMemo<NodeCmp | null>(
+    () => (viewMode === 'details' ? buildComparator(detailsSort) : null),
+    [viewMode, detailsSort],
+  );
+
   const flat = useMemo(() => {
     if (!rootId) return [];
     const out: FlatRow[] = [];
-    if (visibleSet) flattenFiltered(nodes, rootId, 0, visibleSet, out);
-    else flatten(nodes, rootId, 0, out);
+    if (visibleSet) flattenFiltered(nodes, rootId, 0, visibleSet, out, sortCmp);
+    else flatten(nodes, rootId, 0, out, sortCmp);
     return out;
-  }, [nodes, rootId, visibleSet]);
+  }, [nodes, rootId, visibleSet, sortCmp]);
 
   const orderedIdsRef = useRef<NodeId[]>([]);
   orderedIdsRef.current = useMemo(() => flat.map(f => f.node.id), [flat]);
+
+  // Progressive rendering: mount the first screenful immediately, then grow the
+  // rendered window a chunk per animation frame so opening a huge folder never
+  // freezes. Off-screen images don't decode anyway (loading=lazy +
+  // content-visibility), so this only bounds the React render cost.
+  const INITIAL_BATCH = 200;
+  const BATCH_STEP = 200;
+  const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
+  // Reset to the first batch whenever the rendered set fundamentally changes.
+  useEffect(() => {
+    setVisibleCount(INITIAL_BATCH);
+  }, [rootId, viewMode, filterMode, query]);
+  // Grow one chunk per frame until everything is mounted.
+  useEffect(() => {
+    if (visibleCount >= flat.length) return;
+    const raf = requestAnimationFrame(() =>
+      setVisibleCount(c => Math.min(flat.length, c + BATCH_STEP)),
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [visibleCount, flat.length]);
+
+  const visibleFlat = useMemo(
+    () => (visibleCount >= flat.length ? flat : flat.slice(0, visibleCount)),
+    [flat, visibleCount],
+  );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -234,6 +335,37 @@ export function TreeCanvas() {
     setMenu({ nodeId: id, x, y });
   }, []);
 
+  // Ctrl+wheel zoom for grid/details. A native non-passive listener is required
+  // so preventDefault actually suppresses the webview's own page zoom.
+  const wheelHandlerRef = useRef<(e: WheelEvent) => void>();
+  if (!wheelHandlerRef.current) {
+    wheelHandlerRef.current = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const ui = useUIStore.getState();
+      ui.setGridSize(ui.gridSize + (e.deltaY < 0 ? GRID_SIZE_STEP : -GRID_SIZE_STEP));
+    };
+  }
+  const zoomElRef = useRef<HTMLDivElement | null>(null);
+  const setZoomEl = useCallback((el: HTMLDivElement | null) => {
+    if (zoomElRef.current) {
+      zoomElRef.current.removeEventListener('wheel', wheelHandlerRef.current!);
+    }
+    zoomElRef.current = el;
+    if (el) el.addEventListener('wheel', wheelHandlerRef.current!, { passive: false });
+  }, []);
+
+  // Derived preview sizes. Thumbnail request sizes are quantised to 64-px
+  // buckets so a few zoom steps reuse the same cached decode.
+  // Request sizes are kept small (close to display size) so the base64 payload
+  // and decode stay light — the visible image is CSS-scaled anyway.
+  const gridThumbReq = Math.min(224, Math.ceil((gridSize * 1.1) / 32) * 32);
+  const detailThumb = Math.max(18, Math.min(80, Math.round(gridSize / 3)));
+  const detailThumbReq = Math.min(128, Math.ceil((detailThumb * 1.4) / 32) * 32);
+  const tileThumb = Math.max(36, Math.min(120, Math.round(gridSize * 0.46)));
+  const tileThumbReq = Math.min(192, Math.ceil((tileThumb * 1.3) / 32) * 32);
+  const stripThumb = Math.max(52, Math.min(160, Math.round(gridSize * 0.56)));
+
   if (!rootId) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground font-mono-tight text-sm gap-2">
@@ -254,27 +386,65 @@ export function TreeCanvas() {
         onContentSearchChange={setContentSearch}
         contentScanning={contentScanning}
         contentMatchCount={contentMatches.size}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        gridSize={gridSize}
+        onGridSizeChange={setGridSize}
       />
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <ScrollArea className="flex-1 w-full scrollbar-thin">
+      {viewMode === 'tree' && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <ScrollArea className="flex-1 w-full scrollbar-thin">
+            <div
+              role="tree"
+              aria-label={t('tree.ariaLabel')}
+              className="py-2"
+              onClick={handleBackgroundClick}
+            >
+              {visibleFlat.map(({ node, depth }) => (
+                <TreeRow
+                  key={node.id}
+                  node={node}
+                  depth={depth}
+                  selected={focusedId === node.id}
+                  inMultiSelect={multiSelect.has(node.id)}
+                  editing={editingId === node.id}
+                  highlight={highlightSet.has(node.id)}
+                  onToggle={handleToggle}
+                  onSelect={handleSelect}
+                  onOpen={handleOpen}
+                  onStartEdit={handleStartEdit}
+                  onCommitEdit={handleCommitEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onContextMenu={handleContextMenu}
+                />
+              ))}
+            </div>
+          </ScrollArea>
+        </DndContext>
+      )}
+      {viewMode === 'grid' && (
+        <div ref={setZoomEl} className="flex-1 min-h-0 w-full overflow-auto scrollbar-thin">
           <div
             role="tree"
             aria-label={t('tree.ariaLabel')}
-            className="py-2"
+            className="grid gap-2 p-3"
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
+            }}
             onClick={handleBackgroundClick}
           >
-            {flat.map(({ node, depth }) => (
-              <TreeRow
+            {visibleFlat.map(({ node }) => (
+              <TreeGridItem
                 key={node.id}
                 node={node}
-                depth={depth}
+                size={gridSize}
+                thumbSize={gridThumbReq}
                 selected={focusedId === node.id}
                 inMultiSelect={multiSelect.has(node.id)}
                 editing={editingId === node.id}
                 highlight={highlightSet.has(node.id)}
                 onToggle={handleToggle}
                 onSelect={handleSelect}
-                onOpen={handleOpen}
                 onStartEdit={handleStartEdit}
                 onCommitEdit={handleCommitEdit}
                 onCancelEdit={handleCancelEdit}
@@ -282,8 +452,146 @@ export function TreeCanvas() {
               />
             ))}
           </div>
-        </ScrollArea>
-      </DndContext>
+        </div>
+      )}
+      {viewMode === 'details' && (
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div
+            className={
+              DETAILS_COLS +
+              ' shrink-0 border-b border-border px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground font-mono-tight'
+            }
+          >
+            {(
+              [
+                ['name', 'details.colName'],
+                ['type', 'details.colType'],
+                ['size', 'details.colSize'],
+                ['modified', 'details.colModified'],
+              ] as [DetailsSort['key'], string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleDetailsSort(key)}
+                className={
+                  'flex items-center gap-1 hover:text-foreground ' +
+                  (key === 'size' ? 'justify-end' : '')
+                }
+              >
+                <span>{t(label)}</span>
+                {detailsSort.key === key &&
+                  (detailsSort.dir === 'asc' ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  ))}
+              </button>
+            ))}
+          </div>
+          <div
+            ref={setZoomEl}
+            className="flex-1 min-h-0 w-full overflow-auto scrollbar-thin"
+          >
+            <div role="tree" aria-label={t('tree.ariaLabel')} onClick={handleBackgroundClick}>
+              {visibleFlat.map(({ node, depth }, index) => (
+                <TreeDetailsRow
+                  key={node.id}
+                  node={node}
+                  depth={depth}
+                  index={index}
+                  thumbPx={detailThumb}
+                  thumbSize={detailThumbReq}
+                  selected={focusedId === node.id}
+                  inMultiSelect={multiSelect.has(node.id)}
+                  editing={editingId === node.id}
+                  highlight={highlightSet.has(node.id)}
+                  onToggle={handleToggle}
+                  onSelect={handleSelect}
+                  onStartEdit={handleStartEdit}
+                  onCommitEdit={handleCommitEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onContextMenu={handleContextMenu}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {viewMode === 'list' && (
+        <div className="flex-1 min-h-0 w-full overflow-auto scrollbar-thin">
+          <div
+            role="tree"
+            aria-label={t('tree.ariaLabel')}
+            className="p-2"
+            style={{ columnWidth: 220 }}
+            onClick={handleBackgroundClick}
+          >
+            {visibleFlat.map(({ node }) => (
+              <TreeListItem
+                key={node.id}
+                node={node}
+                selected={focusedId === node.id}
+                inMultiSelect={multiSelect.has(node.id)}
+                editing={editingId === node.id}
+                highlight={highlightSet.has(node.id)}
+                onToggle={handleToggle}
+                onSelect={handleSelect}
+                onStartEdit={handleStartEdit}
+                onCommitEdit={handleCommitEdit}
+                onCancelEdit={handleCancelEdit}
+                onContextMenu={handleContextMenu}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {viewMode === 'tiles' && (
+        <div ref={setZoomEl} className="flex-1 min-h-0 w-full overflow-auto scrollbar-thin">
+          <div
+            role="tree"
+            aria-label={t('tree.ariaLabel')}
+            className="grid gap-2 p-3"
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(180, tileThumb * 2.6)}px, 1fr))`,
+            }}
+            onClick={handleBackgroundClick}
+          >
+            {visibleFlat.map(({ node }) => (
+              <TreeTileItem
+                key={node.id}
+                node={node}
+                thumbPx={tileThumb}
+                thumbSize={tileThumbReq}
+                selected={focusedId === node.id}
+                inMultiSelect={multiSelect.has(node.id)}
+                editing={editingId === node.id}
+                highlight={highlightSet.has(node.id)}
+                onToggle={handleToggle}
+                onSelect={handleSelect}
+                onStartEdit={handleStartEdit}
+                onCommitEdit={handleCommitEdit}
+                onCancelEdit={handleCancelEdit}
+                onContextMenu={handleContextMenu}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {viewMode === 'gallery' && (
+        <div ref={setZoomEl} className="flex flex-1 min-h-0 flex-col">
+          <GalleryView
+            rows={visibleFlat.map(f => f.node)}
+            focusedId={focusedId}
+            multiSelect={multiSelect}
+            stripThumb={stripThumb}
+            onSelect={handleSelect}
+            onToggle={handleToggle}
+            onContextMenu={handleContextMenu}
+          />
+        </div>
+      )}
+      {viewMode === 'columns' && <ColumnsView onContextMenu={handleContextMenu} />}
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
           <div className="flex items-center gap-2 rounded-md border border-border bg-card/80 px-3 py-2 text-xs font-mono-tight">

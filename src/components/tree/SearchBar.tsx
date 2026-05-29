@@ -1,9 +1,33 @@
 import { useMemo } from 'react';
-import { FileSearch, Filter, Highlighter, Loader2, Search, X } from 'lucide-react';
+import {
+  Columns3,
+  FileSearch,
+  Filter,
+  GalleryThumbnails,
+  Highlighter,
+  LayoutGrid,
+  LayoutList,
+  List,
+  ListTree,
+  Loader2,
+  Search,
+  Table2,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { findMatchingIds } from '@/core/search/filterTree';
 import { useSelectionStore, useTreeStore } from '@/stores';
+import {
+  GRID_SIZE_MAX,
+  GRID_SIZE_MIN,
+  GRID_SIZE_STEP,
+  ZOOMABLE_VIEW_MODES,
+  type TreeViewMode,
+} from '@/stores/uiStore';
+import { cn } from '@/lib/cn';
 import { useT } from '@/lib/i18n';
 
 interface Props {
@@ -15,7 +39,21 @@ interface Props {
   onContentSearchChange: (next: boolean) => void;
   contentScanning: boolean;
   contentMatchCount: number;
+  viewMode: TreeViewMode;
+  onViewModeChange: (next: TreeViewMode) => void;
+  gridSize: number;
+  onGridSizeChange: (next: number) => void;
 }
+
+const VIEW_MODES: { id: TreeViewMode; icon: typeof ListTree; labelKey: string }[] = [
+  { id: 'tree', icon: ListTree, labelKey: 'view.tree' },
+  { id: 'list', icon: List, labelKey: 'view.list' },
+  { id: 'tiles', icon: LayoutList, labelKey: 'view.tiles' },
+  { id: 'grid', icon: LayoutGrid, labelKey: 'view.grid' },
+  { id: 'gallery', icon: GalleryThumbnails, labelKey: 'view.gallery' },
+  { id: 'details', icon: Table2, labelKey: 'view.details' },
+  { id: 'columns', icon: Columns3, labelKey: 'view.columns' },
+];
 
 export function SearchBar({
   value,
@@ -26,6 +64,10 @@ export function SearchBar({
   onContentSearchChange,
   contentScanning,
   contentMatchCount,
+  viewMode,
+  onViewModeChange,
+  gridSize,
+  onGridSizeChange,
 }: Props) {
   const nodes = useTreeStore(s => s.nodes);
   const rootId = useTreeStore(s => s.rootId);
@@ -53,6 +95,63 @@ export function SearchBar({
 
   return (
     <div className="flex items-center gap-2 border-b border-border px-2 py-1">
+      <div className="flex items-center rounded-md border border-border p-0.5">
+        {VIEW_MODES.map(({ id, icon: Icon, labelKey }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onViewModeChange(id)}
+            aria-label={t(labelKey)}
+            aria-pressed={viewMode === id}
+            title={t(labelKey)}
+            className={cn(
+              'flex h-6 w-6 items-center justify-center rounded transition-colors',
+              viewMode === id
+                ? 'bg-primary/20 text-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/60',
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </button>
+        ))}
+      </div>
+      {ZOOMABLE_VIEW_MODES.includes(viewMode) && (
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={() => onGridSizeChange(gridSize - GRID_SIZE_STEP)}
+            disabled={gridSize <= GRID_SIZE_MIN}
+            aria-label={t('view.zoomOut')}
+            title={t('view.zoomOut')}
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </Button>
+          <input
+            type="range"
+            min={GRID_SIZE_MIN}
+            max={GRID_SIZE_MAX}
+            step={GRID_SIZE_STEP}
+            value={gridSize}
+            onChange={e => onGridSizeChange(Number(e.target.value))}
+            className="h-1 w-16 cursor-pointer accent-primary"
+            aria-label={t('view.size')}
+            title={`${t('view.size')}: ${gridSize}px`}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={() => onGridSizeChange(gridSize + GRID_SIZE_STEP)}
+            disabled={gridSize >= GRID_SIZE_MAX}
+            aria-label={t('view.zoomIn')}
+            title={t('view.zoomIn')}
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
       <Search className="h-3.5 w-3.5 text-muted-foreground" />
       <Input
         data-tree-search

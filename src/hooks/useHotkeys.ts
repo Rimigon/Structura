@@ -77,6 +77,20 @@ export function useHotkeys() {
         redoTree();
         return;
       }
+      if (match(hk.selectAll)) {
+        // Outside a text input, Ctrl+A selects every tree node instead of
+        // letting the webview select all on-screen text.
+        e.preventDefault();
+        const tree = useTreeStore.getState();
+        const ids: string[] = [];
+        for (const id in tree.nodes) {
+          if (id === tree.rootId) continue;
+          if (tree.nodes[id]?.dirty === 'deleted') continue;
+          ids.push(id);
+        }
+        useSelectionStore.getState().selectAll(ids);
+        return;
+      }
       if (match(hk.copyNames)) {
         // Must be checked before the plain copy binding since both use KeyC.
         const sel = useSelectionStore.getState();

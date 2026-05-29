@@ -194,6 +194,15 @@ export async function extractMetadata(path: string): Promise<MediaMetadata> {
   return invoke<MediaMetadata>('extract_metadata', { path });
 }
 
+/** Returns a base64 `data:` URL preview of an image file, downscaled to fit
+ *  `maxSize`×`maxSize`. Throws for non-image / unreadable files. */
+export async function getThumbnail(
+  path: string,
+  maxSize?: number,
+): Promise<string> {
+  return invoke<string>('get_thumbnail', { path, maxSize: maxSize ?? null });
+}
+
 export interface ShellIntegrationStatus {
   platform: string;
   installed: boolean;

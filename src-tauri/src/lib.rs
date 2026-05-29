@@ -62,6 +62,7 @@ pub fn run() {
             commands::open_floating_widget,
             commands::close_floating_widget,
             commands::extract_metadata,
+            commands::get_thumbnail,
             commands::shell_integration_status,
             commands::install_shell_integration,
             commands::uninstall_shell_integration,

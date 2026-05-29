@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["macos-private-api", "protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
@@ -27,14 +27,31 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 fs2 = "0.4"
 jwalk = "0.8"
+rayon = "1"
 rusqlite = { version = "0.31", features = ["bundled"] }
 sha2 = "0.10"
 notify = "6"
 kamadak-exif = "0.5"
 id3 = "1"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = [
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "tiff",
+  "ico",
+] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_UI_Shell",
+  "Win32_Graphics_Gdi",
+] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,9 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { DirNode, TreeNode } from '@/types';
 import { MonoText } from '@/components/common/MonoText';
+import { FileThumbnail, isMediaNode } from '@/components/tree/FileThumbnail';
 import { useTreeStore } from '@/stores';
 import { useLocale, useT } from '@/lib/i18n';
-import { extractMetadata, isTauri, type MediaMetadata } from '@/lib/tauri';
+import { extractMetadata, isTauri, readTextFile, type MediaMetadata } from '@/lib/tauri';
+
+const TEXT_EXTS = new Set([
+  'txt', 'md', 'markdown', 'rst', 'log', 'csv', 'tsv',
+  'json', 'jsonc', 'xml', 'yml', 'yaml', 'toml', 'ini', 'cfg', 'conf', 'env',
+  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'html', 'htm', 'vue', 'svelte',
+  'py', 'rs', 'go', 'java', 'kt', 'c', 'h', 'cpp', 'hpp', 'cc', 'cs', 'rb', 'php', 'swift',
+  'sh', 'bash', 'zsh', 'bat', 'cmd', 'ps1', 'sql', 'gradle', 'dockerfile', 'gitignore', 'lua', 'r',
+]);
+const TEXT_PREVIEW_MAX_BYTES = 256 * 1024;
+const TEXT_PREVIEW_CHARS = 6000;
 
 interface Props {
   node: TreeNode;
@@ -26,8 +38,21 @@ export function NodeDetails({ node }: Props) {
   const nodes = useTreeStore(s => s.nodes);
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
+  const [textPreview, setTextPreview] = useState<string | null>(null);
   const t = useT();
   const locale = useLocale();
+
+  const ext = node.kind === 'file' ? node.ext.toLowerCase() : '';
+  const isMedia = isMediaNode(node);
+  const isPdf =
+    node.kind === 'file' && !!node.originalPath && ext === 'pdf';
+  const isText =
+    node.kind === 'file' &&
+    !!node.originalPath &&
+    !isMedia &&
+    TEXT_EXTS.has(ext) &&
+    node.size > 0 &&
+    node.size <= TEXT_PREVIEW_MAX_BYTES;
 
   useEffect(() => {
     if (!isTauri() || node.kind !== 'file' || !node.originalPath) {
@@ -59,6 +84,25 @@ export function NodeDetails({ node }: Props) {
     };
   }, [node]);
 
+  // Text-file preview — read a capped prefix of the file's content.
+  useEffect(() => {
+    if (!isText || !isTauri() || node.kind !== 'file' || !node.originalPath) {
+      setTextPreview(null);
+      return;
+    }
+    let cancelled = false;
+    readTextFile(node.originalPath)
+      .then(txt => {
+        if (!cancelled) setTextPreview(txt.slice(0, TEXT_PREVIEW_CHARS));
+      })
+      .catch(() => {
+        if (!cancelled) setTextPreview(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isText, node]);
+
   const stats = useMemo(() => {
     if (node.kind !== 'dir') return null;
     let files = 0;
@@ -85,6 +129,29 @@ export function NodeDetails({ node }: Props) {
 
   return (
     <div className="space-y-3 text-sm">
+      {isMedia && (
+        <div className="flex justify-center rounded-md border border-border bg-muted/30 p-2">
+          <FileThumbnail
+            node={node}
+            size={320}
+            eager
+            className="max-h-56 w-auto rounded object-contain"
+            fallback={null}
+          />
+        </div>
+      )}
+      {isPdf && node.kind === 'file' && node.originalPath && (
+        <iframe
+          title={node.name}
+          src={convertFileSrc(node.originalPath)}
+          className="h-64 w-full rounded-md border border-border bg-white"
+        />
+      )}
+      {isText && textPreview != null && (
+        <pre className="max-h-64 overflow-auto rounded-md border border-border bg-muted/30 p-2 text-[10px] leading-snug whitespace-pre-wrap break-words font-mono-tight scrollbar-thin">
+          {textPreview}
+        </pre>
+      )}
       <Field label={t('nd.name')}>
         <MonoText>{node.name}</MonoText>
       </Field>

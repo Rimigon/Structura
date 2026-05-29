@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { Copy, FileSearch, Link2, Loader2, Trash2 } from 'lucide-react';
 import {
   Dialog,
@@ -15,7 +16,7 @@ import { MonoText } from '@/components/common/MonoText';
 import { useTreeStore, useUIStore } from '@/stores';
 import { findDuplicates, isTauri } from '@/lib/tauri';
 import { useT } from '@/lib/i18n';
-import type { DuplicateGroup, Operation, Transaction } from '@/types';
+import type { DedupProgress, DuplicateGroup, Operation, Transaction } from '@/types';
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} Б`;
@@ -52,6 +53,28 @@ export function DedupDialog() {
   const [keep, setKeep] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scanned, setScanned] = useState(false);
+  const [progress, setProgress] = useState<DedupProgress | null>(null);
+
+  // Live progress stream from the Rust scanner. Mounted only while the dialog is
+  // open so we don't keep a global listener around.
+  useEffect(() => {
+    if (!open || !isTauri()) return;
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    listen<DedupProgress>('dedup-progress', ev => {
+      if (ev.payload.phase === 'done') setProgress(null);
+      else setProgress(ev.payload);
+    })
+      .then(fn => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => void 0);
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+  }, [open]);
 
   const totalWaste = useMemo(() => {
     let sum = 0;
@@ -77,6 +100,7 @@ export function DedupDialog() {
     if (!rootFsPath || !isTauri()) return;
     setScanning(true);
     setError(null);
+    setProgress({ phase: 'scanning', processed: 0, total: 0 });
     try {
       const min = Math.max(1, Math.floor(Number(minSizeKB) * 1024));
       const result = await findDuplicates(rootFsPath, min);
@@ -89,6 +113,7 @@ export function DedupDialog() {
       setKeep([]);
     } finally {
       setScanning(false);
+      setProgress(null);
     }
   };
 
@@ -143,6 +168,7 @@ export function DedupDialog() {
       setKeep([]);
       setError(null);
       setScanned(false);
+      setProgress(null);
     }
     setOpen(next);
   };
@@ -196,6 +222,38 @@ export function DedupDialog() {
                 )}
               </Button>
             </div>
+
+            {scanning && progress && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-mono-tight text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {progress.phase === 'scanning'
+                      ? t('dedup.phaseScanning')
+                      : progress.phase === 'hashing'
+                        ? t('dedup.phaseHashing')
+                        : t('dedup.phaseVerifying')}
+                  </span>
+                  <span className="tabular-nums">
+                    {progress.total > 0
+                      ? `${progress.processed} / ${progress.total}`
+                      : `${progress.processed}`}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  {progress.total > 0 ? (
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width] duration-150"
+                      style={{
+                        width: `${Math.min(100, Math.round((progress.processed / progress.total) * 100))}%`,
+                      }}
+                    />
+                  ) : (
+                    <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/70" />
+                  )}
+                </div>
+              </div>
+            )}
 
             {groups.length > 0 && (
               <div className="flex items-center gap-2 border-b border-border pb-2">
