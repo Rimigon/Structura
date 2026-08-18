@@ -74,23 +74,29 @@ Windows · macOS · Linux. Собрано на Tauri 2 (Rust) + React 18 + TypeS
 1. Скачайте `Structura_<версия>_universal.dmg` — универсальная сборка для Intel и Apple Silicon.
 2. Откройте `.dmg`, перетащите `Structura.app` в `Applications`.
 3. Если при первом запуске macOS пишет **«Structura повреждено и не может быть открыто»** — это карантинный флаг Gatekeeper, а не реальное повреждение. Снимите его одной командой в Terminal:
+
    ```sh
    xattr -cr /Applications/Structura.app
    ```
+
    Приложение не подписано (Apple Developer ID стоит $99/год), поэтому Gatekeeper блокирует запуск по умолчанию. Команда выше удаляет атрибут карантина, после чего macOS запустит приложение.
 
 ### Linux
 
 - **Debian / Ubuntu (`.deb`):**
+
   ```sh
   sudo dpkg -i structura_<версия>_amd64.deb
   sudo apt -f install   # добавит зависимости, если dpkg пожалуется
   ```
+
 - **Любой дистрибутив (AppImage):**
+
   ```sh
   chmod +x Structura_<версия>_amd64.AppImage
   ./Structura_<версия>_amd64.AppImage
   ```
+
   AppImage не требует установки и запускается с любого места.
 
 ### Как собираются релизы
@@ -119,11 +125,13 @@ git push origin v0.3.0
 Structura умеет проверять обновления в GitHub Releases и устанавливать подписанный установщик одним кликом. Чтобы первый релиз собрался корректно, мейнтейнеру нужно один раз сгенерировать ключевую пару и положить её в секреты репозитория.
 
 1. **Сгенерируйте ed25519-пару**:
+
    ```sh
    pnpm tauri signer generate -w %USERPROFILE%\.tauri\structura-updater.key
    # Linux/macOS:
    # pnpm tauri signer generate -w ~/.tauri/structura-updater.key
    ```
+
    Команда спросит пароль и создаст:
    - `structura-updater.key` — приватный (НЕ коммитить!)
    - `structura-updater.key.pub` — публичный
@@ -137,6 +145,7 @@ Structura умеет проверять обновления в GitHub Releases 
 4. **Опубликуйте релиз** (draft надо именно *publish*, не оставлять draft — иначе `releases/latest/download/...` отдаёт 404). `tauri-action` сам добавит к артефактам файл `latest.json` с подписями.
 
 Endpoint, который опрашивает приложение, прописан в `tauri.conf.json`:
+
 ```
 https://github.com/Rimigon/Structura/releases/latest/download/latest.json
 ```
@@ -159,21 +168,28 @@ https://github.com/Rimigon/Structura/releases/latest/download/latest.json
 1. **Установите Microsoft Visual Studio Build Tools** — нужен линкер MSVC. [Скачать](https://visualstudio.microsoft.com/visual-cpp-build-tools/). При установке выбрать workload *«Desktop development with C++»*.
 2. **Установите WebView2 Runtime** — уже встроен в Windows 10 21H2+ и Windows 11. Если нет — [Evergreen installer](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
 3. **Установите Rust** через rustup:
+
    ```powershell
    winget install Rustlang.Rustup
    # или скачать https://rustup.rs/ и запустить rustup-init.exe
    rustup default stable
    ```
+
 4. **Установите Node.js 20+**:
+
    ```powershell
    winget install OpenJS.NodeJS.LTS
    ```
+
 5. **Установите pnpm**:
+
    ```powershell
    npm install -g pnpm
    ```
+
 6. **(опционально для symlink-операций)** Включите Developer Mode: `Settings → Privacy & Security → For developers → Developer Mode`. Без него симлинки на Windows требуют запуска приложения от имени администратора.
 7. **Клонируйте и установите**:
+
    ```powershell
    git clone <repo-url> Structura
    cd Structura
@@ -184,20 +200,27 @@ https://github.com/Rimigon/Structura/releases/latest/download/latest.json
 ### macOS (с нуля)
 
 1. **Установите Xcode Command Line Tools**:
+
    ```sh
    xcode-select --install
    ```
+
 2. **Homebrew** (если ещё не стоит):
+
    ```sh
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    ```
+
 3. **Node.js + pnpm + Rust**:
+
    ```sh
    brew install node@20 pnpm rustup-init
    rustup-init -y
    source "$HOME/.cargo/env"
    ```
+
 4. **Клонируйте и установите**:
+
    ```sh
    git clone <repo-url> Structura
    cd Structura
@@ -208,6 +231,7 @@ https://github.com/Rimigon/Structura/releases/latest/download/latest.json
 ### Linux (Ubuntu / Debian с нуля)
 
 1. **Системные библиотеки Tauri** (WebKit, AppIndicator, SVG):
+
    ```sh
    sudo apt update
    sudo apt install -y \
@@ -222,19 +246,25 @@ https://github.com/Rimigon/Structura/releases/latest/download/latest.json
      libxdo-dev \
      libgtk-3-dev
    ```
+
    Для Fedora / RHEL аналоги: `webkit2gtk4.1-devel`, `libappindicator-gtk3-devel`, `librsvg2-devel`, `gtk3-devel`.
 2. **Rust**:
+
    ```sh
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
    source "$HOME/.cargo/env"
    ```
+
 3. **Node.js 20+ и pnpm**:
+
    ```sh
    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
    sudo apt install -y nodejs
    sudo npm install -g pnpm
    ```
+
 4. **Клонируйте и установите**:
+
    ```sh
    git clone <repo-url> Structura
    cd Structura
