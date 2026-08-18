@@ -8,6 +8,8 @@
 
 Windows · macOS · Linux. Собрано на Tauri 2 (Rust) + React 18 + TypeScript + Tailwind + Shadcn UI. Интерфейс двуязычный: русский (по умолчанию) / English.
 
+![Скриншот](docs/screenshots/main.png)
+
 ## Возможности
 
 ### Ядро (P0)
